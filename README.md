@@ -1,6 +1,6 @@
 # GLaTICK
 ## (Generational Logic and Time Interval Cadence Knower)
-A real-time clock PC BIOS Companion ROM supporting many popular RTC ICs
+A real-time clock PC BIOS [Companion ROM](https://github.com/640-KB/GLaBIOS) supporting many popular RTC ICs
 
 Copyright &copy; 2023, [640KB](mailto:640kb@glabios.org) and contributors.
 
