@@ -14,4 +14,4 @@ Copyright &copy; 2023, [640KB](mailto:640kb@glabios.org) and contributors.
 
 ### Credits:
 
-- @PickledDog for the name.
+- @PickledDog for the name
