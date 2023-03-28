@@ -4,7 +4,9 @@ A real-time clock PC BIOS [Companion ROM](https://github.com/640-KB/GLaBIOS) sup
 
 Copyright &copy; 2023, [640KB](mailto:640kb@glabios.org) and contributors.
 
-### Coming Soon!
+### Pre-release ROMs available for testing
+
+[GLaTICK pre-releases](https://github.com/640-KB/GLaTICK/releases)
 
 ## Features
 
