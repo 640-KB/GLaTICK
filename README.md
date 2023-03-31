@@ -1,5 +1,5 @@
 # GLaTICK
-## (Generational Logic and Time Interval Cadence Knower) <sup>[**](https://github.com/640-KB/GLaTICK#support)</sup> 
+## (Generational Logic and Time Interval Cadence Knower) <sup>[**](#credits)</sup> 
 A real-time clock PC BIOS [Companion ROM](https://github.com/640-KB/GLaBIOS/wiki/Companion-ROMs) supporting many popular RTC ICs.
 
 GLaTICK eliminates the need for DOS-based RTC clock drivers/programs and lets your supported RTC "just work" like later PCs.
