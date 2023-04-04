@@ -26,6 +26,12 @@ GLaTICK eliminates the need for DOS-based RTC clock drivers/programs letting you
 - DOS 3.3 or later
 - GLaTICK ROM image within the valid Option ROM address space.  [More info here](https://github.com/640-KB/GLaTICK/wiki/Option-ROM-How-to).
 
+## Companion ROMs
+
+[Companion ROMs](https://github.com/640-KB/GLaBIOS/wiki/Companion-ROMs) are PC Option ROMs that hat add additional features and support to any standard BIOS (not just GLaBIOS).
+
+- **[GLaTICK](https://github.com/640-KB/GLaTICK)** - ROM based support for ISA Real Time Clocks providing `INT 1Ah` services elimiating the need for DOS programs/drivers.
+
 ## Screenshots
 
 SixPakPlus at `2C0h` on [GLaBIOS](https://github.com/640-KB/GLaBIOS):
