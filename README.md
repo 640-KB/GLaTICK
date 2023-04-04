@@ -36,6 +36,10 @@ RTC_8088 on PC/XT:
 
 ![RTC_8088 XT](https://raw.githubusercontent.com/640-KB/GLaTICK/main/images/glatick_at_pc_mda_1.png)
 
+### Building:
+
+Use MASM 5.0, do `MAKE GLATICK.MAK`.  The included `OPT2ROM.COM` will convert the produced EXE file to a 2 KiB ROM file.
+
 ### Credits:
 
 - @PickledDog, for the name
