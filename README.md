@@ -18,6 +18,7 @@ GLaTICK eliminates the need for DOS-based RTC clock drivers/programs letting you
   - **MM58167/UM82C8167** used by SixPakPlus V1, Turbo 33-XT, Many clone I/O boards (Ports `2C0h`, `240h`, `340h`)
   - **RP5C15** used by SixPakPlus V2
   - **MSM5832** used by Quadram, DTK PII-125
+  - **MSM6242**	used by Intel Above Board and other MSM-6242 boards
 
 ## Requirements
 
