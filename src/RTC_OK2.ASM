@@ -204,7 +204,9 @@ OK2_INT_1A_2 ENDP
 ;----------------------------------------------------------------------------;
 OK2_INT_1A_3 PROC
 	CLI
-	MOV	AL, OK2_CRF	<>			; set 24 hour flag, defaults on CRF
+	MOV	AX, DBW < OK2_CRF	<,,1,,1>, CRF >	; set 24 hour flag, REST = 1
+	CALL	OK2_WRITE
+	MOV	AX, DBW < OK2_CRF	<,,1,,0>, CRF >	; set 24 hour flag, REST = 0
 	CALL	OK2_WRITE
 	MOV	AL, OK_1HOUR
 	MOV	AH, CH				; Hours
