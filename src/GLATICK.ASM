@@ -27,28 +27,31 @@
 ; - MSM5832:		310h, 210h
 ; - MM58167:		*240h, *340h, *2C0h, 250h, *300h, 350h, 377h, 037Dh, 027Dh
 ; - RP5C15:			*2C0h
+; - MSM-6242:		2C0
 ;
 ; * overlapping port numbers: 240h, 2C0h, 340h
 ;
 ; TODO:
 ; - Others Clock Types:
-; 	- MSM-6242:		240, 250, 2C0, 300, 340, 350
-;	- MSM-58321 (different than 5832?):	2C0, 27E, 37E
+; 	- MSM-6242:		240, 250, 300, 340, 350
+;	- MSM-58321 (different than 5832?):	2C0, 27E, 37E, 02A2-02A3?
 ;	- DS1216E/DS1315 "SmartWatch":	(in progress)
 ; - INT 15h services 86h and 83h
 ; - INT 1Ah services 6h and 7h (where supported)
 ;
+; https://bochs.sourceforge.io/techspec/PORTS.LST
+;
 ;----------------------------------------------------------------------------;
 VER_NAME		EQU	'GLaTICK'
-VER_NUM		EQU	'0.8.2'		; (max 6 chars)
-VER_DATE		EQU	'04/03/23' 		; must be MM/DD/YY format
+VER_NUM		EQU	'0.8.3'		; (max 6 chars)
+VER_DATE		EQU	'05/05/23' 		; must be MM/DD/YY format
 COPY_YEAR		EQU	'2023'
 
 ;----------------------------------------------------------------------------;
 ; Config
 ;----------------------------------------------------------------------------;
 RESET_ON_ERROR	=	1			; reset date if error on POST
-SHOW_BANNER		=	0			; always show full banner at POST
+SHOW_BANNER		=	1			; always show full banner at POST
 SHOW_CLOCK		=	1			; show date and time at POST
 
 MAGIC_WORD		EQU	0AA55H		; Magic Word used for option ROM
@@ -107,11 +110,17 @@ ROM_HEADER	ENDP					; fall through to INIT
 ; INIT procedure called during POST
 ;----------------------------------------------------------------------------;
 ROM_INIT	PROC
+	PUSHF
 	PUSH	AX					; preserve all registers
+	PUSH	DS
+	MOV	AX, SEG _BDA 			; CX = BDA segment, CH = 0
+	MOV	DS, AX 				; DS = BDA
+			ASSUME DS:_BDA	
+	CMP	RTC_DATA, 0				; already been set up?
+	JNZ	DETECT_EXIT				; exit if so
 	PUSH	DX
 	PUSH	SI
 	PUSH	DI
-	PUSH	DS
 	PUSH	ES
 
 			IF SHOW_BANNER EQ 1
@@ -160,6 +169,17 @@ DETECT_RP:
 	CALL	RP_DETECT			; DI = new IVT, AL = RTC type, DX = port
 	MOV	SI, OFFSET STR_RP		; 'RP5C15' string
 	JZ	DETECT_SET
+			ENDIF
+
+			IFDEF RTC_OK2
+;----------------------------------------------------------------------------;
+; Check for MSM6242: 
+;----------------------------------------------------------------------------;
+EXTRN		OK2_DETECT:NEAR
+DETECT_OK2:
+	CALL	OK2_DETECT			; DI = new IVT, AL = RTC type, DX = port
+	MOV	SI, OFFSET STR_OK2	; '6242' string
+	JNC	DETECT_SET
 			ENDIF
 
 			IFDEF RTC_OK
@@ -211,11 +231,13 @@ DETECT_SET:
 DETECT_DONE:
 	CALL	PRINT_DETECTED		; display on POST screen
 	POP	ES				; restore all regs
-	POP	DS
 	POP	DI
 	POP	SI
 	POP	DX
+DETECT_EXIT:
+	POP	DS
 	POP	AX
+	POPF
 	RETF					; return from option ROM init call
 
 ;----------------------------------------------------------------------------;
@@ -406,14 +428,12 @@ ROM_INIT	ENDP					; end of option ROM init
 SETUP_RTC PROC
 	PUSH	DS
 	PUSH	CX
+	PUSHF
+	CLI
 
 ;----------------------------------------------------------------------------;
 ; Set in BDA
 ;
-	MOV	CX, SEG _BDA 			; CX = BDA segment, CH = 0
-	MOV	DS, CX 				; DS = BDA
-	CMP	RTC_DATA, 0				; already been set up?
-	JNZ	SETUP_RTC_EXIT			; exit if so
 	MOV	CL, RTTYPE-8			; nibble size shift
 	SHL	AL, CL				; shift type to high nibble
 	XCHG	AX, DX				; AX = port
@@ -426,6 +446,9 @@ SETUP_RTC PROC
 ;----------------------------------------------------------------------------;
 ; Re-vector the existing INT 1Ah to INT 55h.  Each RTC's ISR will handle
 ; AH function 2-5 (or 7), otherwise it will call the previous 1Ah.
+;
+; Alternative:
+; http://www.ctyme.com/intr/int-4c.htm
 ;
 ; The relocated INT can be changed in SEGS.INC
 ; http://ctyme.com/intr/int.htm
@@ -441,6 +464,7 @@ SETUP_RTC PROC
 
 SETUP_RTC_EXIT:
 				ASSUME DS:_BDA
+	POPF
 	POP	CX
 	POP	DS
 	RET
@@ -692,6 +716,9 @@ STR_AT	DB	'AT ', 0		; 1 = AT = DS1285/MC146818
 			ENDIF
 			IFDEF RTC_OK
 STR_OK	DB	'5832 ', 0		; 2 = OK = MSM5832/1
+			ENDIF
+			IFDEF RTC_OK2
+STR_OK2	DB	'6242 ', 0		;  = OK2 = MSM6242
 			ENDIF
 			IFDEF RTC_RP			
 STR_RP	DB	'RP5C15 ', 0	; 3 = RP = RP5C15
