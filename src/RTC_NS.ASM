@@ -15,9 +15,21 @@ INCLUDE	RTC.INC
 ;----------------------------------------------------------------------------;
 ; Config
 ;----------------------------------------------------------------------------;
-READ_RETRY	=	10			; times to retry for rollover bit on reads
-Y2K_OFFSET	=	1			; store as year-80 (00=1980, 20=2000, etc)
-SHOW_CLOCK	=	1			; enable display of clock on boot
+READ_RETRY		=	10		; times to retry for rollover bit on reads
+Y2K_OFFSET		=	1		; store as year-80 (00=1980, 20=2000, etc)
+SHOW_CLOCK		=	1		; enable display of clock on boot
+
+;----------------------------------------------------------------------------;
+; Hardware variants
+;
+RTC_NS_STD		EQU	1		; standard
+RTC_NS_TEC		EQU	2		; Tecmar Captain (data register is +2)
+
+;----------------------------------------------------------------------------;
+; Hardware type - Uncomment to select
+;
+RTC_NS_TYPE		=	RTC_NS_STD	; set for standard
+;RTC_NS_TYPE	=	RTC_NS_TEC	; set for Tecmar
 
 ;----------------------------------------------------------------------------;
 ; MM58167 Register Indexes
@@ -30,22 +42,22 @@ NS_HOUR		EQU	04H			; hour
 NS_DOW		EQU	05H			; day of week
 NS_DAY		EQU	06H			; day of month
 NS_MONTH		EQU	07H			; month
-NS_RAM1		EQU	08H
-NS_RAM2		EQU	09H
-NS_RAM3		EQU	0AH
-NS_RAM4		EQU	0BH			; "reserved"
-NS_RAM5		EQU	0CH			; RAM-not used
-NS_RAM6		EQU	0DH
-NS_RAM7		EQU	0EH
-NS_RAM8		EQU	0FH
-NS_MONTH2		EQU	NS_RAM2		; RAM-last month storage (AST cards)
-NS_YEAR		EQU	NS_RAM3		; RAM-year storage (-80) (AST cards)
-NS_STATE		EQU	NS_RAM4		; clock state flag (222 = okay)
+NS_RAM1		EQU	NS_MS    OR 8	; RAM - high nibble only
+NS_RAM2		EQU	NS_TSEC  OR 8	; RAM - last month
+NS_RAM3		EQU	NS_SEC   OR 8	; RAM - year
+NS_RAM4		EQU	NS_MIN   OR 8	; RAM - clock valid
+NS_RAM5		EQU	NS_HOUR  OR 8	; RAM - not used
+NS_RAM6		EQU	NS_DOW   OR 8	; low nibble only, high nibble = F
+NS_RAM7		EQU	NS_DAY   OR 8	; RAM - not used
+NS_RAM8		EQU	NS_MONTH OR 8	; RAM - not used
+NS_MONTH2		EQU	NS_RAM2		; RAM - last month storage (AST cards)
+NS_YEAR		EQU	NS_RAM3		; RAM - year storage (-80) (AST cards)
+NS_STATE		EQU	NS_RAM4		; clock valid flag (222 = valid)
 NS_TIME_RST		EQU	12H			; counter reset
 NS_RAM_RST		EQU	13H			; RAM reset
 NS_STATUS		EQU	14H			; rollover status bit
 
-NS_RST		EQU	0FFH			; send all -1 to TIME and RAM reset
+NS_RST		EQU	0FFH			; send all -1 to reset TIME and RAM
 NS_STATE_OK		EQU	222			; Clock valid flag for NS_RAM4 (0BH)
 NS_TEST		EQU	0AAH			; test value used for detection
 
@@ -68,10 +80,13 @@ RTC_NS_PROC PROC
 ; Supported I/O ports
 ;----------------------------------------------------------------------------;
 NS_PORTS	DW	2C0H			; common ports
+			IF	RTC_NS_TYPE	EQ RTC_NS_TEC
+		DW	37DH, 27DH		; Tecmar Captain
+			ELSE
 		DW	240H, 340H
-;		DW	37DH, 27DH		; less common ports (Tecmar Captain)
 ;		DW	250H, 300H
 ;		DW	350H, 377H
+			ENDIF
 NS_PORTS_CT	EQU	($-NS_PORTS)/2	; number of supported ports
 
 ;----------------------------------------------------------------------------;
@@ -105,11 +120,12 @@ INT_1A_NS_2:
 	SHL	AL, 1					; word align index
 	CBW						; AX = jump index
 	XCHG	AX, BX				; restore AX, BX = jump offset
-	CALL	CS:INT_1A_NS_JMP[BX][-4]	; adjust JMP offset (cannot be 0 or 1)
+	CALL	CS:INT_1A_NS_JMP[BX][-4]	; already checked for 0 or 1, so adjust offset
+							; to start at 2
 INT_1A_NS_RET:
 	POP	DI
 	POP	BX
-	JMP	NEAR PTR IRET_CF_1		; IRET with current CF (AX/BP on top of stack)
+	JMP	NEAR PTR IRET_CF_1		; IRET with current CF
 
 ;----------------------------------------------------------------------------;
 ; NS MM58167AN Jump Table
@@ -397,6 +413,12 @@ NS_GET_PORT PROC
 NS_SET_2:
 	MOV	DX, DI			; DX = base port
 	OUT	DX, AL			; set register index
+			IF	RTC_NS_TYPE EQ RTC_NS_TEC
+	CMP	DX, 02C0H			; if port 2C0, data port is 2C1
+	JE	NS_TEC_DONE
+	INC	DX				; DX = data port = index port + 2
+NS_TEC_DONE:
+			ENDIF
 	INC	DX				; DX = data port
 	RET
 NS_GET_PORT ENDP
@@ -551,7 +573,7 @@ NS_DETECT ENDP
 ;	- if AAh, then unknown card
 ;----------------------------------------------------------------------------;
 NS_DETECT_PORT PROC
-	PUSHF					; save IF
+	PUSHF					; save IF (TODO: necessary?)
 	CLI					; disable interrupts
 
 ;----------------------------------------------------------------------------;
