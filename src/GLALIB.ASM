@@ -16,8 +16,8 @@ PUBLIC	POST_START_COL_1, POST_START_COL_2, POST_END_COL, POST_END_COL_NL
 PUBLIC	IS_GLABIOS, IRET_CF, IRET_CF_1
 
 INCLUDE	GLALIB.INC
-INCLUDE 	MACROS.INC
-INCLUDE 	SEGS.INC
+INCLUDE	MACROS.INC
+INCLUDE	SEGS.INC
 INCLUDE	RTC.INC
 
 ;----------------------------------------------------------------------------;
@@ -91,10 +91,9 @@ WORD_HEX PROC
 ;--------------------------------------------------------------------------
 BYTE_HEX PROC
 	PUSH	AX 				; save AL
+	REPT	4				; repeat SHR 4 times
 	SHR	AL, 1				; move high nibble to low nibble
-	SHR	AL, 1				; move high nibble to low nibble
-	SHR	AL, 1				; move high nibble to low nibble
-	SHR	AL, 1				; move high nibble to low nibble
+	ENDM
 	CALL	NIB_HEX 			; write low nibble of AL as HEX to console
 	POP	AX 				; restore AL
 

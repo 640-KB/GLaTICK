@@ -46,11 +46,11 @@ CM_REG_A	RECORD	UIP:1, ASDIV:3=010b, ARSB:4=0110b
 ;    0 		- AIE:   1=enable alarm interrupt, 0=disable
 ;     0 		- UIE:   1=enable update ended interrupt, 0=disable
 ;      0 		- SQWE:  1=enable square wave frequency, 0=disable
-;       0 		- DM:    1=time/date in binary, 0=BCD (default)
-;        1 		- 24/12: 1=24 hour mode, 0=12 hour mode (24 default)
+;       0 		- BCD:   1=time/date in binary, 0=BCD (default)
+;        1 		- 24/12: 1=24 hour mode (default), 0=12 hour mode
 ;         0		- DSE:   1=enable daylight savings, 0=disable (default)
 ;----------------------------------------------------------------------------;
-CM_REG_B	RECORD	BSET:1,BPIE:1,BAIE:1,BUIE:1,SQWE:1,BM:1,B24:1=1,DST:1
+CM_REG_B	RECORD	SET:1,PIE:1,AIE:1,UIE:1,SQWE:1,BCD:1,B24:1=1,DST:1
 
 ;----------------------------------------------------------------------------;
 ; RTC Diagnostic status byte (0EH)
@@ -84,7 +84,8 @@ RTC_AT_PROC PROC
 ; Supported I/O ports
 ;----------------------------------------------------------------------------;
 AT_PORTS	DW	70H, 240H, 2C0H		; standard ports
-;		DW	2A0H, 340H			; less-standard ports
+;		DW	2A0H				; less-standard ports
+;		DW	340H
 AT_PORTS_CT	EQU	($-AT_PORTS)/2		; number of supported ports
 
 ;----------------------------------------------------------------------------;
@@ -109,8 +110,6 @@ INT_1A_AT_1:
 	CALL	GET_RTC				; DI = port, ZF if no RTC installed
 	STC						; presume failure
 	JZ	INT_1A_AT_RET			; exit if port not installed
-	;CMP	AL, RTC_AT SHL 4			; is AT type? (necessary?)
-	;JNE	INT_1A_AT_RET			; exit if not (wrong ZF value)
 	MOV	AX, BX				; restore AX
 	XCHG	AH, AL				; AL = INT 1Ah function
 	SHL	AL, 1					; word align function index
@@ -186,6 +185,7 @@ AT_INT_1A_2_RET:
 	RET
 
 AT_INT_1A_READ_ERR:
+AT_INT_1A_4_READ_ERR:
 	XOR	DX, DX				; clear any incomplete reads
 	MOV	CX, DX				; CX = DX = 0000
 	STC						; CF = read error
@@ -222,10 +222,10 @@ AT_INT_1A_3 PROC
 	CALL	AT_WRITE
 	MOV	AL, AT_REG_B			; Register B
 	CALL	AT_READ
-	AND	AX, MASK BPIE OR MASK BAIE OR MASK B24
+	AND	AX, MASK PIE OR MASK AIE	; clear SET bit, enable ints.
 	OR	AL, MASK B24			; set 24 hour mode
 	SHR	DL, 1					; CF = DST
-	ADC	AH, AL
+	ADC	AH, AL				; AH = new Reg B and DST flag
 	MOV	AL, AT_REG_B			; Register B
 	CALL	AT_WRITE
 	XCHG	AX, BX				; restore AX
@@ -276,10 +276,10 @@ AT_INT_1A_4_RET:
 	XCHG	AX, BX				; restore AX
 	RET
 
-AT_INT_1A_4_READ_ERR:
-	MOV	CX, 1980H				; clear any incomplete reads
-	MOV	DX, 0101H				; default to beginning of time
-	JMP	SHORT AT_INT_1A_4_RET
+;AT_INT_1A_4_READ_ERR:
+;	MOV	CX, 1980H				; clear any incomplete reads
+;	MOV	DX, 0101H				; default to beginning of time
+;	JMP	SHORT AT_INT_1A_4_RET
 
 AT_INT_1A_4 ENDP
 
@@ -312,11 +312,11 @@ AT_INT_1A_5 PROC
 	MOV	AL, AT_REG_CENTURY		; RTC century
 	MOV	AH, CH				; AH = new century
 	CALL	AT_WRITE
-	MOV	AL, AT_REG_B			; Get Register B
-	CALL	AT_READ
-	AND	AL, NOT MASK BSET			; clear SET bit
-	MOV	AH, AL
-	MOV	AL, AT_REG_B			; Register B
+	MOV	AL, AT_REG_B			; Register B index
+	CALL	AT_READ				; AL = current Reg B value
+	AND	AL, NOT MASK SET			; clear SET bit (enable clock)
+	MOV	AH, AL				; AH = new Reg B
+	MOV	AL, AT_REG_B			; Register B index
 	CALL	AT_WRITE
 	XCHG	AX, BX				; restore AX
 	RET
@@ -327,13 +327,13 @@ AT_INT_1A_5 ENDP
 ;----------------------------------------------------------------------------;
 AT_HOLD PROC
 	MOV	AX, DBW < CM_REG_A <>,  AT_REG_A >	; AH = defaults, AL = Reg A
-	CALL	AT_WRITE				; write AH to register AL
-	MOV	AX, DBW < CM_REG_B <1>, AT_REG_B >	; AH = disable clock, AL = Reg B
-	CALL	AT_WRITE				; write AH to register AL
-	INC	AX					; Register C
-	CALL	AT_READ				; read to clear flags
-	MOV	AL, AT_REG_D			; Register D
-	CALL	AT_READ				; read to clear flags
+	CALL	AT_WRITE					; write AH to register AL
+	MOV	AX, DBW < CM_REG_B <1>, AT_REG_B >	; AH = hold clock, AL = Reg B
+	CALL	AT_WRITE					; write AH to register AL
+	INC	AX						; Register C
+	CALL	AT_READ					; read to clear flags
+	MOV	AL, AT_REG_D				; Register D
+	CALL	AT_READ					; read to clear flags
 	RET
 AT_HOLD ENDP
 
