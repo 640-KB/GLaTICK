@@ -23,7 +23,7 @@ GLaTICK eliminates the need for DOS-based RTC clock drivers/programs letting you
 
 - Any BIOS that supports [Option ROMs](https://en.wikipedia.org/wiki/Option_ROM)
 - A [supported](#features) RTC card (of course)
-- DOS 3.3 or later
+- DOS 3.3 or later <super>[**](https://github.com/640-KB/GLaTICK/wiki/IBM-DOS-7-and-PC-DOS-2000)</super>
 - GLaTICK ROM image within the valid Option ROM address space.  [More info here](https://github.com/640-KB/GLaTICK/wiki/Option-ROM-How-to).
 
 ## Screenshots
