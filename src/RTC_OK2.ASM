@@ -8,8 +8,7 @@
 ;----------------------------------------------------------------------------;
 ; TODO:
 ; - clear/reset on invalid clock state
-; - alarms/interrupts
-; - clean up detection proc
+; - alarms/interrupts?
 ;----------------------------------------------------------------------------;
 INCLUDE	RTC.INC
 
@@ -18,12 +17,6 @@ INCLUDE	RTC.INC
 ; Config
 ;----------------------------------------------------------------------------;
 Y2K_OFFSET		=	1			; Store year as YY+20
-
-;----------------------------------------------------------------------------;
-; I/O Ports
-;
-ADDR_PORT		EQU	02C0H			; Address/Register port (only 2C0H)
-DATA_PORT		EQU	ADDR_PORT+1		; Data Port
 
 ;----------------------------------------------------------------------------;
 ; MSM6242 Registers Indexes
@@ -104,7 +97,16 @@ OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 
 PUBLIC	OK2_DETECT
 EXTRN		INT_1A_DEFAULT:NEAR, IRET_CF:NEAR
-EXTRN		BCD_TO_WORD:NEAR, PACK_BCD:NEAR
+EXTRN		BCD_TO_WORD:NEAR, PACK_BCD:NEAR, GET_RTC:NEAR
+
+;----------------------------------------------------------------------------;
+; Supported I/O ports 2C0, 240, 250, 300, 340, 350
+;----------------------------------------------------------------------------;
+OK2_PORTS	DW	2C0H			; common ports
+;		DW	240H, 340H		; less common ports
+;		DW	250H, 300H
+;		DW	340H, 350H
+OK2_PORT_CT	EQU	($-OK2_PORTS)/2	; number of supported ports
 
 ;----------------------------------------------------------------------------;
 ; INT 1A IVT for MSM6242
@@ -120,8 +122,11 @@ INT_1A_OK2_BIOS:
 INT_1A_OK2_1:
 	PUSH	BX
 	PUSH	DI
-	MOV	DI, ADDR_PORT			; default just 2C0 for now
-	MOV	BX, AX				; save AX
+	XCHG	AX, BX				; save AX
+	CALL	GET_RTC				; DI = port, AL = type, ZF if no RTC installed
+	STC						; presume failure
+	JZ	INT_1A_OK2_EXIT			; exit if port not installed
+	MOV	AX, BX				; restore AX
 	XCHG	AH, AL				; AL = function
 	SHL	AL, 1					; word align index
 	CBW						; AX = jump index
@@ -129,7 +134,7 @@ INT_1A_OK2_1:
 	CALL	OK2_HOLD				; test and hold clock
 	JC	INT_1A_OK2_EXIT			; if error, do not continue
 	CALL	CS:INT_1A_OK2_JMP[BX][-4]	; adjust JMP offset (cannot be 0 or 1)
-	CALL	OK2_RUN				; clear hold
+	CALL	OK2_RUN				; clear hold, and CF=0
 INT_1A_OK2_EXIT:
 	POP	DI
 	POP	BX
@@ -203,11 +208,9 @@ OK2_INT_1A_2 ENDP
 ;	   = 0 if standard time
 ;----------------------------------------------------------------------------;
 OK2_INT_1A_3 PROC
+	PUSH	AX
 	CLI
-	MOV	AX, DBW < OK2_CRF	<,,1,,1>, CRF >	; set 24 hour flag, REST = 1
-	CALL	OK2_WRITE
-	MOV	AX, DBW < OK2_CRF	<,,1,,0>, CRF >	; set 24 hour flag, REST = 0
-	CALL	OK2_WRITE
+	CALL	OK2_SET_24				; set 24 hour mode
 	MOV	AL, OK_1HOUR
 	MOV	AH, CH				; Hours
 	AND	AH, MASK HR10 OR MASK HR01
@@ -220,6 +223,7 @@ OK2_INT_1A_3 PROC
 	MOV	AH, DH				; seconds
 	AND	AH, MASK SEC10 OR MASK SEC01
 	CALL	OK2_WRITE_BCD
+	POP	AX
 	RET
 OK2_INT_1A_3 ENDP
 
@@ -289,6 +293,7 @@ OK2_INT_1A_4 ENDP
 ;	nothing
 ;----------------------------------------------------------------------------;
 OK2_INT_1A_5 PROC
+	PUSH	AX
 	CLI
 			IF Y2K_OFFSET EQ 1
 	XCHG	AX, CX
@@ -307,12 +312,36 @@ OK2_INT_1A_5 PROC
 	MOV	AH, DL				; AH = day as packed BCD
 	AND	AH, MASK DT10 OR MASK DT01
 	CALL	OK2_WRITE_BCD
+	POP	AX
 	RET
 OK2_INT_1A_5 ENDP
 
 ;----------------------------------------------------------------------------;
+; Detect MSM6242 on supported ports
+;----------------------------------------------------------------------------;
+OK2_DETECT PROC
+	PUSH	SI
+	PUSH	CX
+	MOV	SI, OFFSET OK2_PORTS		; port table
+	MOV	CX, OK2_PORT_CT			; number of ports
+OK2_DETECT_LOOP:
+	LODS	WORD PTR CS:[SI]			; AX = next port to try
+	XCHG	DI, AX				; DI = port
+	CALL	OK2_DETECT_PORT			; NC if found, CF if not
+	JNC	OK2_DETECT_OK			; exit if found
+	LOOP	OK2_DETECT_LOOP
+	;STC						; RTC not found (unnecessary)
+OK2_DETECT_OK:
+	POP	CX
+	POP	SI
+	RET
+OK2_DETECT ENDP
+
+;----------------------------------------------------------------------------;
 ; Detect MSM6242 on port 2C0H
 ;----------------------------------------------------------------------------;
+; Input:
+;	DI = base port to try
 ; Output:
 ;	CF if error/not found, NC if okay
 ;	DI = offset of new INT 1A IVT
@@ -320,21 +349,22 @@ OK2_INT_1A_5 ENDP
 ;	AL = RTC type (RTC_OK2)
 ; Clobbers: AH
 ;----------------------------------------------------------------------------;
-OK2_DETECT PROC
+OK2_DETECT_PORT PROC
 	PUSHF						; save IF
 	CLI						; disable interrupts
+	CALL	OK2_RESET				; reset to defaults
 	CALL	OK2_HOLD				; hold clock
 	JC	OK2_DETECT_RET			; exit with CF if error
 	CALL	OK2_RUN				; clear hold, set CF=0
-	MOV	DX, ADDR_PORT			; DX = register base port
-	MOV	DI, OFFSET INT_1A_OK2		; set DI only if detected
-	MOV	AL, RTC_OK2
+	MOV	DX, DI				; return detected base port
+	MOV	DI, OFFSET INT_1A_OK2		; set DI if detected
+	MOV	AL, RTC_OK2				; RTC type is MSM6242
 OK2_DETECT_RET:
 	LAHF						; save status flags
 	POPF						; restore IF
 	SAHF						; restore status flags
 	RET
-OK2_DETECT ENDP
+OK2_DETECT_PORT ENDP
 
 ;----------------------------------------------------------------------------;
 ; Hold Clock for read/write
@@ -367,12 +397,12 @@ OK2_HOLD_1:
 	CALL	OK2_RUN				; clear HLD bit
 	MOV	AL, CRD				; control register D
 	CALL	OK2_GET_PORT			; DX = control reg D port
-	ISA_FLUSH
+	ISA_CLEAR					; clear ISA buffers
 	IN	AL, DX				; read current control reg
 	OR	AL, MASK HLD OR MASK BSY	; set HLD and BUSY bit
 	OUT	DX, AL				; write back to controller
 OK2_HOLD_2:
-	ISA_FLUSH
+	ISA_CLEAR
 	IN	AL, DX				; read control reg D
 	TEST	AL, MASK BSY			; check BUSY bit, CF=0
 	JZ	OK2_FOUND_1				; if no busy bit, okay
@@ -399,10 +429,10 @@ OK2_HOLD ENDP
 ;	CF = 0
 ;----------------------------------------------------------------------------;
 OK2_RUN PROC
-	PUSH	AX					; necessary?
+	PUSH	AX					; call preserve AX, DX
 	PUSH	DX
 	MOV	AL, CRD				; control register D
-	CALL	OK2_GET_PORT
+	CALL	OK2_GET_PORT			; DX = control port D
 	IN	AL, DX				; read
 	AND	AL, OK2_CRD <,1,1,1,0>		; clear HLD bit, CF=0
 	OUT	DX, AL				; write back
@@ -412,14 +442,35 @@ OK2_RUN PROC
 OK2_RUN ENDP
 
 ;----------------------------------------------------------------------------;
-; Reset clock and all registers to defaults
+; Set all registers to running defaults
 ;----------------------------------------------------------------------------;
-; TODO: this
+; Input: Interrupts off (IF = 0)
+; Clobbers: AX
 ;----------------------------------------------------------------------------;
 OK2_RESET PROC
-
+	CALL	OK2_SET_24					; set 24 hour mode
+	MOV	AX, DBW < OK2_CRD	<>, CRD >		; clear IRQ, BUSY, HOLD bits
+	CALL	OK2_WRITE
+	MOV	AX, DBW < OK2_CRE	<,,,1,1>, CRE >	; set MASK and ITRPT/STND
+	CALL	OK2_WRITE
 	RET
 OK2_RESET ENDP
+
+;----------------------------------------------------------------------------;
+; Set Clock to 24 hour mode
+;----------------------------------------------------------------------------;
+; Input: Interrupts off (IF = 0)
+; Clobbers: AX
+;----------------------------------------------------------------------------;
+OK2_SET_24 PROC
+	MOV	AX, DBW < OK2_CRF	<,,0,,1>, CRF >	; set REST = 1
+	CALL	OK2_WRITE
+	MOV	AX, DBW < OK2_CRF	<,,1,,1>, CRF >	; set 24 hour flag, REST = 1
+	CALL	OK2_WRITE
+	MOV	AX, DBW < OK2_CRF	<,,1,,0>, CRF >	; set 24 hour flag, REST = 0
+	CALL	OK2_WRITE
+	RET
+OK2_SET_24 ENDP
 
 ;----------------------------------------------------------------------------;
 ; Get register index port
@@ -431,7 +482,7 @@ OK2_GET_PORT PROC
 	PUSH	BX				; save original BX
 	MOV	BX, AX			; save original AX
 	CBW					; AH = 0
-	XCHG	AX, BX			; restore AX
+	XCHG	AX, BX			; restore AX, BX = register index
 	LEA	DX, [BX][DI]		; DX data port
 	POP	BX				; restore BX
 	RET
@@ -455,7 +506,7 @@ OK2_READ_BYTE PROC
 	JC	OK2_READ_BYTE_RET
 	XCHG	AH, AL			; AH = second value, AL = first value
 	CALL	PACK_BCD			; pack BCD digits in AH/AL into AL
-	MOV	AH, 0
+	XOR	AH, AH			; zero extend AL, CF = 0
 OK2_READ_BYTE_RET:
 	POP	DX
 	RET
@@ -472,7 +523,7 @@ OK2_READ_BYTE ENDP
 OK2_READ PROC
 	AND	AL, 0FH			; only low nibble
 	CALL	OK2_GET_PORT		; DX = port for index AL
-	ISA_FLUSH
+	ISA_CLEAR
 	IN	AL, DX			; read register
 	AND	AL, 0FH			; only low nibble
 	CMP	AL, 10			; is valid (< 10)?
@@ -508,12 +559,10 @@ OK2_WRITE_BCD PROC
 ;----------------------------------------------------------------------------;
 OK2_WRITE PROC
 	PUSH	DX
-	PUSH	AX
 	CALL	OK2_GET_PORT		; DX = port for index AL
 	XCHG	AL, AH			; AL = new register value
 	OUT	DX, AL			; write register
-OK2_WRITE_EXIT:
-	POP	AX
+	XCHG	AL, AH			; restore AX
 	POP	DX
 	RET
 OK2_WRITE ENDP
