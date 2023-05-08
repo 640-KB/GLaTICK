@@ -27,16 +27,14 @@
 ; - MSM5832:		310h, 210h
 ; - MM58167:		*240h, *340h, *2C0h, 250h, *300h, 350h, 377h, 037Dh, 027Dh
 ; - RP5C15:			*2C0h
-; - MSM-6242:		2C0
+; - MSM6242:		2C0, 240, 250, 300, 340, 350
 ;
 ; * overlapping port numbers: 240h, 2C0h, 340h
 ;
 ; TODO:
-; - Others Clock Types:
-; 	- MSM-6242:		240, 250, 300, 340, 350
-;	- MSM-58321 (different than 5832?):	2C0, 27E, 37E, 02A2-02A3?
-;	- DS1216E/DS1315 "SmartWatch":	(in progress)
-; - INT 15h services 86h and 83h
+; - Other Clock Types:
+;	- MSM-58321 (is different than 5832?):	2C0, 27E, 37E, 02A2-02A3?
+;	- DS1216E/DS1315 "SmartWatch"
 ; - INT 1Ah services 6h and 7h (where supported)
 ;
 ; https://bochs.sourceforge.io/techspec/PORTS.LST
@@ -173,7 +171,7 @@ DETECT_RP:
 
 			IFDEF RTC_OK2
 ;----------------------------------------------------------------------------;
-; Check for MSM6242: 
+; Check for MSM6242: Above Board, others
 ;----------------------------------------------------------------------------;
 EXTRN		OK2_DETECT:NEAR
 DETECT_OK2:
@@ -555,7 +553,7 @@ BYTE_TO_BCD PROC
 ; Input:
 ;	AX = Unpacked BCD value
 ; Output:
-;	AL = Packed BCD value
+;	AL = Packed BCD value, CF = 0
 ; Clobbers: AH
 ;----------------------------------------------------------------------------;
 PACK_BCD PROC

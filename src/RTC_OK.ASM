@@ -352,7 +352,7 @@ OK_TRY_ADDR:
 	MOV	AL, 0A5H			; test with an "arbitrary" value
 	OUT	DX, AL			; write to Port B (RTC address)
 	IO_DELAY_SHORT
-	ISA_FLUSH				; flush ISA bus will all 1s
+	ISA_CLEAR				; flush ISA bus will all 1s
 	IN	AL, DX			; read back to AL
 	SUB	AL, 0A5H			; still the same?
 	JE	CARD_FOUND			; if so, is

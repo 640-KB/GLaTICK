@@ -21,7 +21,7 @@ UNPACK_BCD	MACRO
 ;----------------------------------------------------------------------------;
 ; Clear ISA bus before I/O port read
 ;----------------------------------------------------------------------------;
-ISA_FLUSH	MACRO
-	MOV	AL, 0FFH			; float ISA data bus
-	OUT	0C0H, AL			; write to unused port
+ISA_CLEAR	MACRO
+	MOV	AL, 0FFH			; write all 1s to bus to clear buffer ICs
+	OUT	0C0H, AL			; write to any unused port
 		ENDM

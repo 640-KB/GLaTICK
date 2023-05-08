@@ -395,7 +395,7 @@ RP_DETECT PROC
 ; On DS12x85/MC146818 (AT), port 2C0H is ... ?
 ;
 	MOV	DX, ADDR_PORT		; DX = register control port
-	ISA_FLUSH				; clear ISA bus
+	ISA_CLEAR				; clear ISA bus
 	IN	AL, DX			; read register
 	AND	AL, 0FH			; isolate only low nibble
 	XOR	AL, 0FH			; ZF = maybe Ricoh (read 0FFH)
@@ -475,7 +475,7 @@ RP_READ PROC
 	OUT	DX, AL			; select register
 	IO_DELAY_SHORT
 	INC	DX				; DX = data port
-	ISA_FLUSH
+	ISA_CLEAR
 	IN	AL, DX			; read register
 	AND	AL, 0FH			; only low nibble
 	CMP	AL, 10			; is valid (< 10)?
