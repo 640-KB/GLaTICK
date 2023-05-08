@@ -319,51 +319,48 @@ OK2_INT_1A_5 ENDP
 ;----------------------------------------------------------------------------;
 ; Detect MSM6242 on supported ports
 ;----------------------------------------------------------------------------;
-OK2_DETECT PROC
-	PUSH	SI
-	PUSH	CX
-	MOV	SI, OFFSET OK2_PORTS		; port table
-	MOV	CX, OK2_PORT_CT			; number of ports
-OK2_DETECT_LOOP:
-	LODS	WORD PTR CS:[SI]			; AX = next port to try
-	XCHG	DI, AX				; DI = port
-	CALL	OK2_DETECT_PORT			; NC if found, CF if not
-	JNC	OK2_DETECT_OK			; exit if found
-	LOOP	OK2_DETECT_LOOP
-OK2_DETECT_OK:
-	POP	CX
-	POP	SI
-	RET
-OK2_DETECT ENDP
-
-;----------------------------------------------------------------------------;
-; Detect MSM6242 on port 2C0H
-;----------------------------------------------------------------------------;
-; Input:
-;	DI = base port to try
 ; Output:
 ;	CF if error/not found, NC if okay
 ;	DI = offset of new INT 1A IVT
 ;	DX = port number
 ;	AL = RTC type (RTC_OK2)
-; Clobbers: AH
+; Clobbers: AH, SI
 ;----------------------------------------------------------------------------;
-OK2_DETECT_PORT PROC
-	PUSHF						; save IF
-	CLI						; disable interrupts
-	CALL	OK2_RESET				; reset to defaults
-	CALL	OK2_HOLD				; hold clock
-	JC	OK2_DETECT_RET			; exit with CF if error
+OK2_DETECT PROC
+	PUSH	CX
+	MOV	SI, OFFSET OK2_PORTS		; port table
+	MOV	CX, OK2_PORT_CT			; number of ports
+
+;----------------------------------------------------------------------------;
+; Attempt to detect RTC on all supported ports
+;
+OK2_DETECT_LOOP:
+	LODS	WORD PTR CS:[SI]			; AX = next port to try
+	XCHG	AX, DI				; DI = port
+
+;----------------------------------------------------------------------------;
+; Detect MSM6242 on port in DI
+;
+OK2_DETECT_PORT:
+	CALL	OK2_RESET				; set RTC registers to defaults
+	CALL	OK2_HOLD				; detect and hold clock
+	JNC	OK2_DETECT_OK			; RTC detected
+	LOOP	OK2_DETECT_LOOP			; otherwise, next port
+OK2_DETECT_DONE:
+	POP	CX
+	RET
+
+;----------------------------------------------------------------------------;
+; RTC detected, set port info and exit
+;
+OK2_DETECT_OK:
 	CALL	OK2_RUN				; clear hold, set CF=0
 	MOV	DX, DI				; return detected base port
 	MOV	DI, OFFSET INT_1A_OK2		; set DI if detected
 	MOV	AL, RTC_OK2				; RTC type is MSM6242
-OK2_DETECT_RET:
-	LAHF						; save status flags
-	POPF						; restore IF
-	SAHF						; restore status flags
-	RET
-OK2_DETECT_PORT ENDP
+	JMP	OK2_DETECT_DONE			; exit if found
+
+OK2_DETECT ENDP
 
 ;----------------------------------------------------------------------------;
 ; Hold Clock for read/write
