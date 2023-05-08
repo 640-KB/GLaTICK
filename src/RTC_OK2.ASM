@@ -330,7 +330,6 @@ OK2_DETECT_LOOP:
 	CALL	OK2_DETECT_PORT			; NC if found, CF if not
 	JNC	OK2_DETECT_OK			; exit if found
 	LOOP	OK2_DETECT_LOOP
-	;STC						; RTC not found (unnecessary)
 OK2_DETECT_OK:
 	POP	CX
 	POP	SI
@@ -449,11 +448,10 @@ OK2_RUN ENDP
 ;----------------------------------------------------------------------------;
 OK2_RESET PROC
 	CALL	OK2_SET_24					; set 24 hour mode
-	MOV	AX, DBW < OK2_CRD	<>, CRD >		; clear IRQ, BUSY, HOLD bits
+	MOV	AX, DBW < OK2_CRD <>, CRD >		; clear IRQ, BUSY, HOLD bits
 	CALL	OK2_WRITE
-	MOV	AX, DBW < OK2_CRE	<,,,1,1>, CRE >	; set MASK and ITRPT/STND
-	CALL	OK2_WRITE
-	RET
+	MOV	AX, DBW < OK2_CRE <,,,1,1>, CRE >	; set MASK and ITRPT/STND
+	JMP	SHORT OK2_WRITE
 OK2_RESET ENDP
 
 ;----------------------------------------------------------------------------;
@@ -463,13 +461,12 @@ OK2_RESET ENDP
 ; Clobbers: AX
 ;----------------------------------------------------------------------------;
 OK2_SET_24 PROC
-	MOV	AX, DBW < OK2_CRF	<,,0,,1>, CRF >	; set REST = 1
+	MOV	AX, DBW < OK2_CRF <,,0,,1>, CRF >	; set REST = 1
 	CALL	OK2_WRITE
-	MOV	AX, DBW < OK2_CRF	<,,1,,1>, CRF >	; set 24 hour flag, REST = 1
+	MOV	AX, DBW < OK2_CRF <,,1,,1>, CRF >	; set 24 hour flag, REST = 1
 	CALL	OK2_WRITE
-	MOV	AX, DBW < OK2_CRF	<,,1,,0>, CRF >	; set 24 hour flag, REST = 0
-	CALL	OK2_WRITE
-	RET
+	MOV	AX, DBW < OK2_CRF <,,1,,0>, CRF >	; set 24 hour flag, REST = 0
+	JMP	SHORT OK2_WRITE
 OK2_SET_24 ENDP
 
 ;----------------------------------------------------------------------------;
