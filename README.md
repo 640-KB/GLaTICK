@@ -37,18 +37,20 @@ RTC_8088 on PC/XT:
 
 ![RTC_8088 XT](https://raw.githubusercontent.com/640-KB/GLaTICK/main/images/glatick_at_pc_mda_1.png)
 
-### Building:
+### Build:
 
-Use MASM 5.0, do `MAKE GLATICK.MAK`.  The included `OPT2ROM.COM` will convert the produced EXE file to a 2 KiB ROM file.
+Using MASM 5: `MAKE GLATICK.MAK`.  
+
+Using MASM 6: `NMAKE GLATICK.NMK`.
+
+The included `OPT2ROM.COM` will convert the produced EXE file to a 2 KiB ROM file.
 
 ### Roadmap:
 
 - Support for additional RTCs including:
   - MSM-58321
-  - MSM-6242
   - DS1216 / DS1315 "Smart Watch"
 - `INT 1Ah` ALARM (`6h` and `7h`) (where supported)
-- `INT 15h` WAIT (`86h` and `83h`)
 
 ### Credits:
 
