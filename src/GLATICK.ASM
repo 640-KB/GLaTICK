@@ -42,15 +42,26 @@
 ;----------------------------------------------------------------------------;
 VER_NAME		EQU	'GLaTICK'
 VER_NUM		EQU	'0.8.3'		; (max 6 chars)
-VER_DATE		EQU	'05/05/23' 		; must be MM/DD/YY format
+VER_DATE		EQU	'05/09/23' 		; must be MM/DD/YY format
 COPY_YEAR		EQU	'2023'
 
 ;----------------------------------------------------------------------------;
 ; Config
 ;----------------------------------------------------------------------------;
-RESET_ON_ERROR	=	1			; reset date if error on POST
 SHOW_BANNER		=	1			; always show full banner at POST
-SHOW_CLOCK		=	1			; show date and time at POST
+SHOW_RTC		=	1			; show detected RTC and clock
+SHOW_CLOCK		=	1			; if above, show date/time at POST
+
+;----------------------------------------------------------------------------;
+; RESET_ON_ERROR:
+; If enabled, this will validate the date and time read from the clock at POST
+;   and if invalid attempt to reset the clock to 1980-01-01 00:00:00. This is
+;   to prevent the "chicken and egg" scenario where DOS will not enable the RTC
+;   thus preventing the date from being set using DATE/TIME.
+; If disabled, non-error/CF results will be displayed as returned by the clock
+;   driver. This may be helpful for debugging clock read issues.
+;
+RESET_ON_ERROR	=	1			; reset date if error on POST
 
 MAGIC_WORD		EQU	0AA55H		; Magic Word used for option ROM
 ROM_SIZE		EQU	800H			; size of ROM (2K)
@@ -208,7 +219,7 @@ DETECT_SW:
 DETECT_NONE:
 	MOV	SI, OFFSET STR_NONE	; 'None' string
 	XOR	DI, DI			; DI = 0 means not detected
-	JMP	SHORT	DETECT_DONE		; last RTC to detect
+	JMP	SHORT	DETECT_DONE		; done detecting RTCs and none found
 
 ;----------------------------------------------------------------------------;
 ; RTC was detected - set up IVT and BDA
@@ -218,16 +229,47 @@ DETECT_SET:
 	PUSH	DX				; save DX port
 	CALL	SETUP_RTC			; set RTC type and port DX
 	POP	DI				; DI = detected port
+
+;----------------------------------------------------------------------------;
+; Read and validate date
+;
+	MOV	AH, 4				; read RTC date, CF if error
+	INT	1AH				; CH=century, CL=year, DH=month, DL=day in BCD
+
+			IF RESET_ON_ERROR NE 1
+	JC	DETECT_DONE			; do not set BIOS clock if failure
+			ELSE
+	JC	DETECT_RESET		; if read error, reset date to 1980-01-01
+	CALL	VALIDATE_DATE		; validate date
+	JC	DETECT_RESET		; if not valid, reset clock
+			ENDIF
+
+;----------------------------------------------------------------------------;
+; Read and validate time
+;
 	MOV	AH, 2				; read RTC, CF if error
 	INT	1AH				; CH=hours, CL=mins, DH=sec, DL=dst in BCD
-	JC	DETECT_DONE			; do not set clock if failure
-	PUSH	DI
-	CALL	BCD_TIME_TO_TICKS		; set BIOS clock from BCD values
+
+			IF RESET_ON_ERROR NE 1
+	JC	DETECT_DONE			; do not set BIOS clock if failure
+			ELSE
+	JC	DETECT_RESET		; if read error, reset time to 00:00:00
+	CALL	VALIDATE_TIME		; validate time
+	JC	DETECT_RESET		; if not valid, reset clock
+			ENDIF
+
+;----------------------------------------------------------------------------;
+; Date and time valid - set BIOS ticks
+;
+	CALL	BCD_TIME_TO_TICKS		; set BIOS time/clock from BCD values
 	MOV	AH, 1
 	INT	1AH
-	POP	DI
+	MOV	DL, 1				; set time is valid flag
+
 DETECT_DONE:
+			IF SHOW_RTC EQ 1
 	CALL	PRINT_DETECTED		; display on POST screen
+			ENDIF
 	POP	ES				; restore all regs
 	POP	DI
 	POP	SI
@@ -238,15 +280,42 @@ DETECT_EXIT:
 	POPF
 	RETF					; return from option ROM init call
 
+			IF RESET_ON_ERROR EQ 1
 ;----------------------------------------------------------------------------;
-; Print Detected CS:[SI]
-; Input: DI = port, SI = string of RTC type name
+; If clock was in error state, reset to 1980-01-01 00:00:00 so clock
+; is in running state for DOS to allow initial date/time set.
+;
+DETECT_RESET:
+	MOV	AH, 5					; reset date if error
+	MOV	CX, 1980H				; default to beginning of time
+	MOV	DX, 0101H				; Jan 01
+	INT	1AH
+	MOV	AH, 3					; reset time to 00:00:00
+	CWD						; DX = 0
+	MOV	CX, DX				; CX = 0
+	INT	1AH
+			IF SHOW_RTC EQ 1
+;----------------------------------------------------------------------------;
+; Force 'Error' message since clock was reset
+;
+	CWD						; DL = 0 (invalid read)
+			ENDIF
+	JMP	SHORT DETECT_DONE
+			ENDIF				; /RESET_ON_ERROR
+
+;----------------------------------------------------------------------------;
+; Print detected clock type and I/O port (if enabled)
+;----------------------------------------------------------------------------;
+; Input:
+;	DI = port
+;	CS:[SI] = string of RTC type name
+;	DL = valid flag: 1 = display time, 0 = print 'Error'
 ;----------------------------------------------------------------------------;
 PRINT_DETECTED PROC
 	POST_COL_1	STR_DETECT, POST_CLR_VAL2, 1	; display 'RTC' row label
 	CALL	OUT_SZ				; display RTC name in SI
 	TEST	DI, DI				; port number zero?
-	JZ	RTC_DONE_1				; if zero, do not display
+	JZ	RTC_DONE				; if zero, do not display
 	MOV	AX, DI				; AX = port number to display
 	TEST	AH, AH				; if port is < 100H, show only 
 	JZ	PORT_BYTE				;  two digits
@@ -254,50 +323,43 @@ PRINT_DETECTED PROC
 	JMP	SHORT PORT_DONE
 PORT_BYTE:
 	CALL	BYTE_HEX				; display port as BYTE
-
 PORT_DONE:
 
 			IF SHOW_CLOCK EQ 1
-PRINT_DATETIME PROC
 ;----------------------------------------------------------------------------;
-; Show the date/time on POST screen if enabled
-;
-; TODO: date must be read and checked even if no SHOW_CLOCK
-;
+; Show the date/time on POST screen (if enabled)
+;----------------------------------------------------------------------------;
+PRINT_DATETIME PROC
 	CALL	POST_END_COL			; end first column
 	POST_COL_2	STR_DT, POST_CLR_VAL2	; start second column
+
+;----------------------------------------------------------------------------;
+; Check if clock was previously in error and reset
+;
+	TEST	DL, DL				; if DL = 0, Error flag
+	JZ	RTC_PRINT_ERR			; display 'Error'
+
+;----------------------------------------------------------------------------;
+; Re-read time
+;
 	MOV	AH, 2					; get time from RTC
 	INT	1AH
 	JC	RTC_PRINT_ERR			; if error, display 'Error'
 	PUSH	DX					; save time
 	PUSH	CX
+
+;----------------------------------------------------------------------------;
+; Re-read date
+;
 	MOV	AH, 4					; get date from RTC
 	INT	1AH
 	JNC	RTC_PRINT_DATE			; if no error, print date/time
-	POP	CX					; date read returned error - discard
-	POP	DX					; time just read and clear stack
-
+	POP	CX					; discard date and time values
+	POP	DX
 RTC_PRINT_ERR:
-
-		IF RESET_ON_ERROR EQ 1
-;----------------------------------------------------------------------------;
-; If clock was in error state, reset to 1980-01-01 00:00:00 so clock
-; is in running state for DOS to allow initial date/time set.
-;
-	MOV	AH, 5					; reset date if error
-	MOV	CX, 1980H				; default to beginning of time
-	MOV	DX, 0101H
-	INT	1AH
-	MOV	AH, 3					; reset time to 00:00:00
-	CWD						; DX = 0
-	MOV	CX, DX				; CX = 0
-	INT	1AH
-		ENDIF
-
 	MOV	SI, OFFSET STR_DT_ERR		; print 'Error' message
 	CALL	OUT_SZ
-RTC_DONE_1:
-	JMP	SHORT RTC_DONE
+	JMP	SHORT RTC_DONE			; end column and exit
 
 ;----------------------------------------------------------------------------;
 ; Print Date
@@ -380,7 +442,7 @@ TIME_12_DONE:
 	MOV	AL, CL
 	CALL	BYTE_HEX
 
-		IF TIME_SEC EQ 1			; if seconds shown
+		IF TIME_SEC EQ 1			; END IF seconds shown
 ;----------------------------------------------------------------------------;
 ; Display seconds
 ;
@@ -390,7 +452,7 @@ TIME_12_DONE:
 	CALL	BYTE_HEX
 		ENDIF
 
-		IF TIME_FMT EQ 1			; if 12 hour time
+		IF TIME_FMT EQ 1			; END IF 12 hour time
 ;----------------------------------------------------------------------------;
 ; If 12 hour time, display a/p
 ;
@@ -426,8 +488,8 @@ ROM_INIT	ENDP					; end of option ROM init
 SETUP_RTC PROC
 	PUSH	DS
 	PUSH	CX
-	PUSHF
-	CLI
+	PUSHF						; save IF
+	CLI						; no interrupts while writing IVT
 
 ;----------------------------------------------------------------------------;
 ; Set in BDA
@@ -442,7 +504,7 @@ SETUP_RTC PROC
 ;----------------------------------------------------------------------------;
 ; Set in IVT - important that this is run only once!
 ;----------------------------------------------------------------------------;
-; Re-vector the existing INT 1Ah to INT 55h.  Each RTC's ISR will handle
+; Re-vector the existing INT 1Ah.  Each RTC's ISR will handle
 ; AH function 2-5 (or 7), otherwise it will call the previous 1Ah.
 ;
 ; Alternative:
@@ -455,14 +517,14 @@ SETUP_RTC PROC
 	XOR	AX, AX
 	MOV	DS, AX				; DS = IVT
 	LES	AX, _INT_1AH			; ES:AX = current INT 1Ah
-	MOV	_INT_55H_OFF, AX			; Move old INT 1Ah to INT 55h
-	MOV	_INT_55H_SEG, ES
+	MOV	_INT_1AH_BIOS_OFF, AX		; Save previous BIOS INT 1A
+	MOV	_INT_1AH_BIOS_SEG, ES
 	MOV	_INT_1AH_OFF, DI			; Set up new INT 1Ah
 	MOV	_INT_1AH_SEG, CS
 
 SETUP_RTC_EXIT:
 				ASSUME DS:_BDA
-	POPF
+	POPF						; restore IF
 	POP	CX
 	POP	DS
 	RET
@@ -493,7 +555,7 @@ GET_RTC ENDP
 ; INT 1A - Use existing BIOS function
 ;----------------------------------------------------------------------------;
 INT_1A_DEFAULT PROC NEAR
-	INT	55H					; use BIOS function instead
+	INT	INT_1A_BIOS				; use BIOS function instead
 	IRET
 INT_1A_DEFAULT ENDP
 
@@ -530,8 +592,8 @@ BCD_TO_WORD ENDP
 ; Clobbers: AH
 ;----------------------------------------------------------------------------;
 BCD_TO_BYTE PROC
-	UNPACK_BCD			; split nibbles in AL into AH/AL
-	AAD
+	UNPACK_BCD			; split nibbles in AL into BCD in AH/AL
+	AAD				; AL = unpacked BCD nibbles into decimal
 	RET
 BCD_TO_BYTE ENDP
 
@@ -578,20 +640,20 @@ BYTE_TO_BCD ENDP
 ; Clobbers: AX, DI
 ;----------------------------------------------------------------------------;
 BCD_TIME_TO_TICKS PROC
-	XCHG	AL, CH
+	XCHG	AL, CH			; convert BCD hours to BYTE
 	CALL	BCD_TO_BYTE
 	XCHG	AL, CH
 
-	XCHG	AL, CL
+	XCHG	AL, CL			; convert BCD minutes to BYTE
 	CALL	BCD_TO_BYTE
 	XCHG	AL, CL
 
-	XCHG	AL, DH
+	XCHG	AL, DH			; convert BCD seconds to BYTE
 	CALL	BCD_TO_BYTE
 	XCHG	AL, DH	
 
 ;----------------------------------------------------------------------------;
-; Convert time to ticks (58 bytes)
+; Convert time to ticks
 ;----------------------------------------------------------------------------;
 ; Input: (bytes NOT BCD)
 ;	CH = hour
@@ -599,9 +661,10 @@ BCD_TIME_TO_TICKS PROC
 ;	DH = second
 ; Output:
 ;	CX:DX = ticks
-; Clobbers: AX, DI
+; Clobbers: AX
 ;----------------------------------------------------------------------------;
 TIME_TO_TICKS PROC
+	PUSH	DI
 	MOV	DL, DH			; DL = second
 	XOR	DH, DH			; DX = second (zero extend DL)
 	MOV	DI, DX			; DI = second
@@ -642,6 +705,7 @@ TTT_EVEN_SEC:
 	ADD	CX, AX			; add working products
 	ADC	DX, 0				; carry to high word
 	XCHG	DX, CX			; move to CX:DX
+	POP	DI
 	RET
 TIME_TO_TICKS ENDP
 BCD_TIME_TO_TICKS ENDP
@@ -679,6 +743,92 @@ LEAP_MOD4:
 
 IS_LEAP ENDP
 LEAP_NEXT ENDP
+
+;----------------------------------------------------------------------------;
+; Validate BCD time: 00:00:00-23:59:59
+;----------------------------------------------------------------------------;
+; Input:
+;	CH = Hours (BCD)
+;	CL = Minutes (BCD)
+;	DH = Seconds (BCD)
+; Output:
+;	CF = 1 if error
+; Clobbers: AX
+;----------------------------------------------------------------------------;
+PUBLIC VALIDATE_TIME
+VALIDATE_TIME PROC
+	MOV	AL, CH
+	CALL	BCD_TO_BYTE				; AL = BYTE hours
+	CMP	AL, 24 + 1				; hours > 24?
+	JAE	VAL_TIME_RET			; if so, invalid
+	MOV	AL, CL
+	CALL	BCD_TO_BYTE				; AL = BYTE minutes
+	CMP	AL, 59 + 1				; minutes > 59?
+	JAE	VAL_TIME_RET			; if so, invalid
+	MOV	AL, DH
+	CALL	BCD_TO_BYTE				; AL = BYTE seconds
+	CMP	AL, 59 + 1				; seconds > 59?
+VAL_TIME_RET:
+	CMC
+	RET
+VALIDATE_TIME ENDP
+
+;----------------------------------------------------------------------------;
+; Validate BCD date: year (1980-2079), month (1-12) and day (1-31)
+;----------------------------------------------------------------------------;
+; Check that clock is in valid state and returing sane values.
+; Does not check days in month or leap year.
+;
+; Input:
+;	CX = Year (BCD)
+;	DH = Month (BCD)
+;	DL = Day (BCD)
+; Output:
+;	CF = 1 if error
+; Clobbers: AX
+;----------------------------------------------------------------------------;
+PUBLIC VALIDATE_DATE
+VALIDATE_DATE PROC
+
+;----------------------------------------------------------------------------;
+; Validate year is 1980-2079
+;
+CHECK_YYYY:
+	MOV	AX, CX				; AX = year as BCD
+	CALL	BCD_TO_WORD				; AX = year as WORD
+	CMP	AX, 1980				; is < 1980?
+	JB	VAL_DATE_RET			; if so, invalid (CF)
+	CMP	AX, 2079				; is > 2079?
+	JA	VAL_DATE_ERR			; if so, invalid (NC)
+
+;----------------------------------------------------------------------------;
+; Validate month is 01-12
+;
+CHECK_MONTH:
+	MOV	AL, DH				; AL = BCD month
+	CALL	BCD_TO_BYTE				; AL = BYTE month
+	TEST	AL, AL				; is 0?
+	JZ	VAL_DATE_ERR			; if so, not valid (ZF)
+	CMP	AL, 12				; is > 12?
+	JA	VAL_DATE_ERR			; if so, not valid (NC)
+
+;----------------------------------------------------------------------------;
+; Validate day is 01-31
+;
+CHECK_DAY:
+	MOV	AL, DL				; AL = BCD day
+	CALL	BCD_TO_BYTE				; AL = BYTE day
+	TEST	AL, AL				; is 0?
+	JZ	VAL_DATE_ERR			; if so, not valid
+	CMP	AL, 31				; is <= 31?
+	CMC						; if not, not valid (CF)
+VAL_DATE_RET:
+	RET						; return with current CF
+VAL_DATE_ERR:
+	STC						; return with CF = 1
+	RET
+
+VALIDATE_DATE ENDP
 
 ;----------------------------------------------------------------------------;
 ; Strings

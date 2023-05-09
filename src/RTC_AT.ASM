@@ -184,8 +184,10 @@ AT_INT_1A_2_RET:
 	XCHG	AX, BX				; restore AX
 	RET
 
+;----------------------------------------------------------------------------;
+; Clear any incomplete reads and return with error (CF)
+;
 AT_INT_1A_READ_ERR:
-AT_INT_1A_4_READ_ERR:
 	XOR	DX, DX				; clear any incomplete reads
 	MOV	CX, DX				; CX = DX = 0000
 	STC						; CF = read error
@@ -203,6 +205,8 @@ AT_INT_1A_2 ENDP
 ;	DH = seconds in BCD
 ;	DL = 1 if daylight savings time option
 ;	   = 0 if standard time
+; Output:
+;	DL = 0
 ;----------------------------------------------------------------------------;
 AT_INT_1A_3 PROC
 	XCHG	AX, BX				; preserve AX
@@ -256,31 +260,25 @@ AT_INT_1A_4 PROC
 	CLI
 	MOV	AL, AT_REG_MONTH			; RTC month
 	CALL	AT_READ
-	JC	AT_INT_1A_4_READ_ERR
+	JC	AT_INT_1A_READ_ERR
 	MOV	AH, AL				; save to DH
 	MOV	AL, AT_REG_DAY			; RTC day
 	CALL	AT_READ
-	JC	AT_INT_1A_4_READ_ERR
+	JC	AT_INT_1A_READ_ERR
 	XCHG	AX, DX				; save to DL
 	MOV	AL, AT_REG_CENTURY		; RTC century
 	CALL	AT_READ				; AL = century
-	JC	AT_INT_1A_4_READ_ERR
+	JC	AT_INT_1A_READ_ERR
 	MOV	AH, AL				; save to AH
 	MOV	AL, AT_REG_YEAR			; RTC year
 	CALL	AT_READ				; AL = year
 	CMP	AL, 99H + 1				; is valid BCD year?
 	CMC						; CF if > 99H
-	JC	AT_INT_1A_4_READ_ERR
+	JC	AT_INT_1A_READ_ERR
 	XCHG	AX, CX				; save to CH/CL
 AT_INT_1A_4_RET:
 	XCHG	AX, BX				; restore AX
 	RET
-
-;AT_INT_1A_4_READ_ERR:
-;	MOV	CX, 1980H				; clear any incomplete reads
-;	MOV	DX, 0101H				; default to beginning of time
-;	JMP	SHORT AT_INT_1A_4_RET
-
 AT_INT_1A_4 ENDP
 
 ;----------------------------------------------------------------------------;

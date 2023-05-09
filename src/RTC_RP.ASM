@@ -7,7 +7,6 @@
 ; RTC Support for RP = RP5C15 SixPakPlus V2
 ;----------------------------------------------------------------------------;
 ; TODO:
-; - clear/reset on invalid clock state
 ; - alarms/interrupts
 ;----------------------------------------------------------------------------;
 INCLUDE	RTC.INC
