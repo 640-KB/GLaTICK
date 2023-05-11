@@ -27,11 +27,10 @@
 ; - MSM5832:		310h, 210h
 ; - MM58167:		*240h, *340h, *2C0h, 250h, *300h, 350h, 377h, 037Dh, 027Dh
 ; - RP5C15:			*2C0h
-; - MSM6242:		2C0, 240, 250, 300, 340, 350
-;
-; * overlapping port numbers: 240h, 2C0h, 340h
+; - MSM6242:		2C0h, 240h, 250h, 300h, 340h, 350h
 ;
 ; TODO:
+; - RTC Detection with overlapping port numbers: 240h, 2C0h, 340h
 ; - Other Clock Types:
 ;	- MSM-58321 (is different than 5832?):	2C0, 27E, 37E, 02A2-02A3?
 ;	- DS1216E/DS1315 "SmartWatch"
@@ -41,8 +40,8 @@
 ;
 ;----------------------------------------------------------------------------;
 VER_NAME		EQU	'GLaTICK'
-VER_NUM		EQU	'0.8.3'		; (max 6 chars)
-VER_DATE		EQU	'05/09/23' 		; must be MM/DD/YY format
+VER_NUM		EQU	'0.8.4'		; (max 6 chars)
+VER_DATE		EQU	'05/11/23' 		; must be MM/DD/YY format
 COPY_YEAR		EQU	'2023'
 
 ;----------------------------------------------------------------------------;
@@ -51,17 +50,6 @@ COPY_YEAR		EQU	'2023'
 SHOW_BANNER		=	1			; always show full banner at POST
 SHOW_RTC		=	1			; show detected RTC and clock
 SHOW_CLOCK		=	1			; if above, show date/time at POST
-
-;----------------------------------------------------------------------------;
-; RESET_ON_ERROR:
-; If enabled, this will validate the date and time read from the clock at POST
-;   and if invalid attempt to reset the clock to 1980-01-01 00:00:00. This is
-;   to prevent the "chicken and egg" scenario where DOS will not enable the RTC
-;   thus preventing the date from being set using DATE/TIME.
-; If disabled, non-error/CF results will be displayed as returned by the clock
-;   driver. This may be helpful for debugging clock read issues.
-;
-RESET_ON_ERROR	=	1			; reset date if error on POST
 
 MAGIC_WORD		EQU	0AA55H		; Magic Word used for option ROM
 ROM_SIZE		EQU	800H			; size of ROM (2K)
@@ -76,7 +64,7 @@ DATE_FMT		=	3			; 0 = MM/DD/YY (Ye Olde BIOS style)
 TIME_SEC		=	0			; 1 = HH:MM:SS, 0 = HH:MM only
 
 ;----------------------------------------------------------------------------;
-; Formatting based on display config
+; Date/time display formatting based on display config
 ;
 		IF DATE_FMT LT 2
 DATE_SEP		=	'/'			; '/' date separator
@@ -98,8 +86,8 @@ INCLUDE 	SEGS.INC
 			ASSUME DS:OPTROM, SS:OPTROM, CS:OPTROM, ES:OPTROM
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 
-PUBLIC	INT_1A_DEFAULT, IS_LEAP, LEAP_NEXT, GET_RTC
-PUBLIC	PACK_BCD, BCD_TO_WORD, BCD_TO_BYTE, STR_CRLF
+PUBLIC	INT_1A_DEFAULT, IS_LEAP, LEAP_NEXT, GET_RTC, STR_CRLF
+PUBLIC	PACK_BCD, UNPACK_BCD, BCD_TO_WORD, BCD_TO_BYTE, BYTE_TO_BCD
 
 EXTRN		OUT_CHAR:NEAR, OUT_SZ_ATTR:NEAR, OUT_SZ:NEAR, OUT_SZ_NL:NEAR
 EXTRN		WORD_HEX:NEAR, BYTE_HEX:NEAR
@@ -113,11 +101,12 @@ EXTRN		POST_END_COL:NEAR, POST_END_COL_NL:NEAR, IS_GLABIOS:NEAR
 ROM_HEADER	PROC FAR
 	DW	MAGIC_WORD				; ROM magic number
 	DB	ROM_SIZE / 512			; ROM size (512 byte blocks)
-ROM_HEADER	ENDP					; fall through to INIT
+ROM_HEADER	ENDP
 
 ;----------------------------------------------------------------------------;
 ; INIT procedure called during POST
 ;----------------------------------------------------------------------------;
+			ORG	0003H			; fixed offset for INIT
 ROM_INIT	PROC
 	PUSHF
 	PUSH	AX					; preserve all registers
@@ -264,7 +253,7 @@ DETECT_SET:
 	CALL	BCD_TIME_TO_TICKS		; set BIOS time/clock from BCD values
 	MOV	AH, 1
 	INT	1AH
-	MOV	DL, 1				; set time is valid flag
+	MOV	DL, 1				; set "time is valid" flag (DL=1)
 
 DETECT_DONE:
 			IF SHOW_RTC EQ 1
@@ -290,18 +279,19 @@ DETECT_RESET:
 	MOV	CX, 1980H				; default to beginning of time
 	MOV	DX, 0101H				; Jan 01
 	INT	1AH
+
 	MOV	AH, 3					; reset time to 00:00:00
 	CWD						; DX = 0
 	MOV	CX, DX				; CX = 0
 	INT	1AH
-			IF SHOW_RTC EQ 1
+				IF SHOW_RTC EQ 1
 ;----------------------------------------------------------------------------;
 ; Force 'Error' message since clock was reset
 ;
-	CWD						; DL = 0 (invalid read)
-			ENDIF
+	CWD						; clear "time is valid" flag (DL=0)
+				ENDIF			; END IF SHOW_RTC
 	JMP	SHORT DETECT_DONE
-			ENDIF				; /RESET_ON_ERROR
+			ENDIF				; END IF RESET_ON_ERROR
 
 ;----------------------------------------------------------------------------;
 ; Print detected clock type and I/O port (if enabled)
@@ -312,7 +302,7 @@ DETECT_RESET:
 ;	DL = valid flag: 1 = display time, 0 = print 'Error'
 ;----------------------------------------------------------------------------;
 PRINT_DETECTED PROC
-	POST_COL_1	STR_DETECT, POST_CLR_VAL2, 1	; display 'RTC' row label
+	POST_COL_1	STR_RTC, POST_CLR_VAL2, 1	; display 'RTC' row label
 	CALL	OUT_SZ				; display RTC name in SI
 	TEST	DI, DI				; port number zero?
 	JZ	RTC_DONE				; if zero, do not display
@@ -331,7 +321,7 @@ PORT_DONE:
 ;----------------------------------------------------------------------------;
 PRINT_DATETIME PROC
 	CALL	POST_END_COL			; end first column
-	POST_COL_2	STR_DT, POST_CLR_VAL2	; start second column
+	POST_COL_2	STR_CLK, POST_CLR_VAL2	; start second column
 
 ;----------------------------------------------------------------------------;
 ; Check if clock was previously in error and reset
@@ -357,7 +347,7 @@ PRINT_DATETIME PROC
 	POP	CX					; discard date and time values
 	POP	DX
 RTC_PRINT_ERR:
-	MOV	SI, OFFSET STR_DT_ERR		; print 'Error' message
+	MOV	SI, OFFSET STR_ERR		; print 'Error' message
 	CALL	OUT_SZ
 	JMP	SHORT RTC_DONE			; end column and exit
 
@@ -414,13 +404,13 @@ RTC_PRINT_DATE:
 	MOV	AL, ' '
 	CALL	OUT_CHAR
 
-;----------------------------------------------------------------------------;
-; Display Time
-;----------------------------------------------------------------------------;
 	POP	CX					; restore time
 	POP	DX
-	MOV	AL, CH				; AL = BCD hours
 
+;----------------------------------------------------------------------------;
+; Print Time
+;----------------------------------------------------------------------------;
+	MOV	AL, CH				; AL = BCD hours
 		IF TIME_FMT EQ 1			; 12 hour time
 	CMP	AL, 12H				; is noon or before?
 	JLE	TIME_12_DONE			; jump if so
@@ -457,9 +447,9 @@ TIME_12_DONE:
 ; If 12 hour time, display a/p
 ;
 	MOV	AL, 'a'
-	CMP	CH, 12H
-	JL	TIME_12_DONE_1
-	MOV	AL, 'p'
+	CMP	CH, 12H				; hours > 12?
+	JL	TIME_12_DONE_1			; if not, leave 'a'
+	MOV	AL, 'p'				; otherwise, change to 'p'
 TIME_12_DONE_1:
 	CALL	OUT_CHAR
 		ENDIF					; END IF 12 hour time
@@ -556,7 +546,7 @@ GET_RTC ENDP
 ;----------------------------------------------------------------------------;
 INT_1A_DEFAULT PROC NEAR
 	INT	INT_1A_BIOS				; use BIOS function instead
-	IRET
+	IRET						; clobber BIOS INT 1Ah flags and IRET
 INT_1A_DEFAULT ENDP
 
 ;----------------------------------------------------------------------------;
@@ -569,7 +559,7 @@ INT_1A_DEFAULT ENDP
 ;----------------------------------------------------------------------------;
 BCD_TO_WORD PROC
 	PUSH	BX
-	MOV	BX, AX		; save 
+	MOV	BX, AX		; save input
 	CALL	BCD_TO_BYTE		; convert low byte
 	XCHG	AX, BX		; BL = low byte
 	MOV	AL, AH		; AL = high byte
@@ -592,10 +582,23 @@ BCD_TO_WORD ENDP
 ; Clobbers: AH
 ;----------------------------------------------------------------------------;
 BCD_TO_BYTE PROC
-	UNPACK_BCD			; split nibbles in AL into BCD in AH/AL
+	CALL	UNPACK_BCD		; split nibbles in AL into BCD in AH/AL
 	AAD				; AL = unpacked BCD nibbles into decimal
 	RET
 BCD_TO_BYTE ENDP
+
+;----------------------------------------------------------------------------;
+; Convert packed BCD to unpacked BCD
+;----------------------------------------------------------------------------;
+; Input:
+;	AL = packed BCD value
+; Output:
+;	AH/AL = unpacked BCD value
+;----------------------------------------------------------------------------;
+UNPACK_BCD PROC
+	UNPACK_NIB			; unpack nibbles
+	RET
+UNPACK_BCD ENDP
 
 ;----------------------------------------------------------------------------;
 ; Convert BYTE to packed BCD
@@ -610,19 +613,16 @@ BYTE_TO_BCD PROC
 	AAM				; split nibbles to AH / AL
 
 ;----------------------------------------------------------------------------;
-; Convert Unpacked BCD to Packed BCD in AX
+; Convert unpacked BCD to packed BCD
 ;----------------------------------------------------------------------------;
 ; Input:
-;	AX = Unpacked BCD value
+;	AH/AL = Unpacked BCD value
 ; Output:
 ;	AL = Packed BCD value, CF = 0
 ; Clobbers: AH
 ;----------------------------------------------------------------------------;
 PACK_BCD PROC
-	REPT	4
-	SHL	AH, 1			; shift low nibble into high nibble
-	ENDM
-	OR	AL, AH		; combine nibbles
+	PACK_NIB			; pack nibbles
 	RET
 PACK_BCD ENDP
 BYTE_TO_BCD ENDP
@@ -755,7 +755,6 @@ LEAP_NEXT ENDP
 ;	CF = 1 if error
 ; Clobbers: AX
 ;----------------------------------------------------------------------------;
-PUBLIC VALIDATE_TIME
 VALIDATE_TIME PROC
 	MOV	AL, CH
 	CALL	BCD_TO_BYTE				; AL = BYTE hours
@@ -787,7 +786,6 @@ VALIDATE_TIME ENDP
 ;	CF = 1 if error
 ; Clobbers: AX
 ;----------------------------------------------------------------------------;
-PUBLIC VALIDATE_DATE
 VALIDATE_DATE PROC
 
 ;----------------------------------------------------------------------------;
@@ -838,44 +836,40 @@ VER_BANNER	DB	CR, LF
 		DB	VER_NAME, ' [', HEART, '] '
 		DB	"It's About Time"
 		DB	CR, LF
+		DB	'Ver: '
+				ELSE
+		DB	VER_NAME, ' '		; embed name and version
+				ENDIF
+		DB	VER_NUM, ' '
 		DB	'(C) '
 		DB	COPY_YEAR
 		DB	' 640KB Released under GPLv3'
-				ELSE
-		DB	VER_NAME, ' '
-				ENDIF
 STR_CRLF	DB	CR, LF, 0
-
-;VER		DB	'v', VER_NUM, ' ', VER_DATE, 0
-VER		DB	VER_NUM, 0
-
-STR_DT	DB	'Clock', 0
-STR_DT_ERR	DB	'Error', 0
-STR_DETECT	DB	'RTC   '
-		DB	POST_L, 0
-POST_RSEP	DB	POST_R, 0
+STR_RTC	DB	'RTC', 0
+STR_CLK	DB	'Clock', 0
+STR_ERR	DB	'Error', 0
 
 ;----------------------------------------------------------------------------;
 ; RTC type display
 ;
 STR_NONE	DB	'None', 0
 			IFDEF RTC_AT
-STR_AT	DB	'AT ', 0		; 1 = AT = DS1285/MC146818
+STR_AT	DB	'AT ', 0			; AT = DS1285/MC146818
 			ENDIF
 			IFDEF RTC_OK
-STR_OK	DB	'5832 ', 0		; 2 = OK = MSM5832/1
+STR_OK	DB	'5832 ', 0			; OK = MSM5832/1
 			ENDIF
 			IFDEF RTC_OK2
-STR_OK2	DB	'6242 ', 0		;  = OK2 = MSM6242
+STR_OK2	DB	'6242 ', 0			; OK2 = MSM6242
 			ENDIF
 			IFDEF RTC_RP			
-STR_RP	DB	'RP5C15 ', 0	; 3 = RP = RP5C15
+STR_RP	DB	'RP5C15 ', 0		; RP = RP5C15
 			ENDIF
 			IFDEF RTC_SW
-STR_SW	DB	'DS1216 ', 0	; 4 = SW = DS1216x
+STR_SW	DB	'DS1216 ', 0		; SW = DS1216x
 			ENDIF
 			IFDEF RTC_NS
-STR_NS	DB	'58167 ', 0		; 6,7 = NS = MM58167AN
+STR_NS	DB	'58167 ', 0			; NS = MM58167AN
 			ENDIF
 
 ;----------------------------------------------------------------------------;

@@ -4,10 +4,10 @@
 ;----------------------------------------------------------------------------;
 ; GLaTICK (Generational Logic and Time Interval Cadence Keeper)
 ;----------------------------------------------------------------------------;
-; RTC Support for OK2 - MSM-6242
+; RTC Support for OK2 MSM6242: Above Board, clones
 ;----------------------------------------------------------------------------;
 ; TODO:
-; - alarms/interrupts?
+; - INT 1Ah Alarm/interrupts
 ;----------------------------------------------------------------------------;
 INCLUDE	RTC.INC
 
@@ -95,8 +95,8 @@ INCLUDE 	MACROS.INC
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 
 PUBLIC	OK2_DETECT
-EXTRN		INT_1A_DEFAULT:NEAR, IRET_CF:NEAR
-EXTRN		BCD_TO_WORD:NEAR, PACK_BCD:NEAR, GET_RTC:NEAR
+EXTRN		INT_1A_DEFAULT:NEAR, IRET_CF:NEAR, GET_RTC:NEAR
+EXTRN		BCD_TO_WORD:NEAR, PACK_BCD:NEAR, UNPACK_BCD:NEAR
 
 ;----------------------------------------------------------------------------;
 ; Supported I/O ports 2C0, 240, 250, 300, 340, 350
@@ -535,7 +535,7 @@ OK2_READ ENDP
 OK2_WRITE_BCD PROC
 	MOV	BX, AX			; save starting index
 	XCHG	AH, AL			; AL = register value
-	UNPACK_BCD				; unpack BCD digits in AL into AH/AL
+	CALL	UNPACK_BCD			; unpack BCD digits in AL into AH/AL
 	MOV	BH, AH			; save high digit
 	MOV	AH, AL			; AH = low digit
 	MOV	AL, BL			; AL = starting index

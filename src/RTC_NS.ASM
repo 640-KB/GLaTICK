@@ -4,32 +4,28 @@
 ;----------------------------------------------------------------------------;
 ; GLaTICK (Generational Logic and Time Interval Cadence Keeper)
 ;----------------------------------------------------------------------------;
-; RTC Support for NS MM58167AN including SixPakPlus V1, Clone I/O boards
-;----------------------------------------------------------------------------;
-; TODO:
-; - alarms/interrupts
+; RTC Support for NS MM58167AN: SixPakPlus V1, Clone I/O boards
 ;----------------------------------------------------------------------------;
 INCLUDE	RTC.INC
 
 			IFDEF RTC_NS
 ;----------------------------------------------------------------------------;
-; Config
+; MM58167 Equates (do not edit)
 ;----------------------------------------------------------------------------;
-READ_RETRY		=	10		; times to retry for rollover bit on reads
-Y2K_OFFSET		=	1		; store as year-80 (00=1980, 20=2000, etc)
-SHOW_CLOCK		=	1		; enable display of clock on boot
 
 ;----------------------------------------------------------------------------;
 ; Hardware variants
 ;
-RTC_NS_STD		EQU	1		; standard
-RTC_NS_TEC		EQU	2		; Tecmar Captain (data register is +2)
+RTC_NS_STD		EQU	1			; standard
+RTC_NS_TEC		EQU	2			; Tecmar Captain (data reg is +2)
 
 ;----------------------------------------------------------------------------;
-; Hardware type - Uncomment to select
+; Software compatibility
 ;
-RTC_NS_TYPE		=	RTC_NS_STD	; set for standard
-;RTC_NS_TYPE	=	RTC_NS_TEC	; set for Tecmar
+RTC_DRV_STD		EQU	1			; standard (ASTCLOCK, CLOCK.COM)
+RTC_DRV_OLD		EQU	2			; previous (<= 0.8.3) behavior
+RTC_DRV_86B		EQU	3			; 86Box (AST, 5PAK or EV-170)
+RTC_DRV_86B2	EQU	4			; 86Box (PII-147)
 
 ;----------------------------------------------------------------------------;
 ; MM58167 Register Indexes
@@ -42,17 +38,15 @@ NS_HOUR		EQU	04H			; hour
 NS_DOW		EQU	05H			; day of week
 NS_DAY		EQU	06H			; day of month
 NS_MONTH		EQU	07H			; month
-NS_RAM1		EQU	NS_MS    OR 8	; RAM - high nibble only
-NS_RAM2		EQU	NS_TSEC  OR 8	; RAM - last month
-NS_RAM3		EQU	NS_SEC   OR 8	; RAM - year
-NS_RAM4		EQU	NS_MIN   OR 8	; RAM - clock valid
-NS_RAM5		EQU	NS_HOUR  OR 8	; RAM - not used
-NS_RAM6		EQU	NS_DOW   OR 8	; low nibble only, high nibble = F
-NS_RAM7		EQU	NS_DAY   OR 8	; RAM - not used
-NS_RAM8		EQU	NS_MONTH OR 8	; RAM - not used
-NS_MONTH2		EQU	NS_RAM2		; RAM - last month storage (AST cards)
-NS_YEAR		EQU	NS_RAM3		; RAM - year storage (-80) (AST cards)
-NS_STATE		EQU	NS_RAM4		; clock valid flag (222 = valid)
+NS_RAM		EQU	08H			; address offset for RAM registers
+NS_RAM1		EQU	NS_RAM + NS_MS 	; 08H - RAM1 ms high nibble only, low = 0
+NS_RAM2		EQU	NS_RAM + NS_TSEC	; 09H - RAM2 last month (Year DTK Hexa)
+NS_RAM3		EQU	NS_RAM + NS_SEC	; 0AH - RAM3 year (AST)
+NS_RAM4		EQU	NS_RAM + NS_MIN	; 0BH - RAM4 clock valid
+NS_RAM5		EQU	NS_RAM + NS_HOUR	; 0CH - RAM5 not used
+NS_RAM6		EQU	NS_RAM + NS_DOW	; 0DH - RAM6 week low nibble only, high = 0
+NS_RAM7		EQU	NS_RAM + NS_DAY	; 0EH - RAM7 not used (Year 86Box)
+NS_RAM8		EQU	NS_RAM + NS_MONTH	; 0FH - RAM8 not used
 NS_TIME_RST		EQU	12H			; counter reset
 NS_RAM_RST		EQU	13H			; RAM reset
 NS_STATUS		EQU	14H			; rollover status bit
@@ -60,6 +54,71 @@ NS_STATUS		EQU	14H			; rollover status bit
 NS_RST		EQU	0FFH			; send all -1 to reset TIME and RAM
 NS_STATE_OK		EQU	222			; Clock valid flag for NS_RAM4 (0BH)
 NS_TEST		EQU	0AAH			; test value used for detection
+
+;----------------------------------------------------------------------------;
+; Standard RAM register addresses
+;
+NS_MONTH2		=	NS_RAM2		; 09H RAM - last month storage
+NS_YEAR		=	NS_RAM3		; 0AH RAM - year storage
+NS_STATE		=	NS_RAM4		; 0BH clock valid flag (222 = valid)
+
+
+;----------------------------------------------------------------------------;
+; Config Defaults
+;----------------------------------------------------------------------------;
+READ_RETRY		=	10		; times to retry for rollover bit on reads
+SHOW_CLOCK		=	1		; enable display of clock on boot
+RST_STATE		=	1		; reset clock if no valid state flag
+Y2K_OFFSET		=	1		; store as year-80 (00=1980, 20=2000, etc)
+YEAR_BCD		=	0		; 1=store year as BCD, 0=byte
+YEAR_INCR		=	1		; increment year (normal)
+
+;----------------------------------------------------------------------------;
+; Hardware type: Uncomment to select
+;
+RTC_NS_TYPE		=	RTC_NS_STD		; set for standard
+;RTC_NS_TYPE	=	RTC_NS_TEC		; set for Tecmar
+
+;----------------------------------------------------------------------------;
+; Driver Software compatibility: Uncomment to select
+;
+RTC_DRV_TYPE	=	RTC_DRV_STD		; set for standard (year as byte)
+;RTC_DRV_TYPE	=	RTC_DRV_OLD		; set for <= 0.8.3 behavior
+;RTC_DRV_TYPE	=	RTC_DRV_86B		; set for 86Box (AST, 5PAK or EV-170)
+;RTC_DRV_TYPE	=	RTC_DRV_86B2	; set for 86Box (PII-147)
+
+;----------------------------------------------------------------------------;
+; Reconfigure for specific hardware/software
+;----------------------------------------------------------------------------;
+
+		IF RTC_DRV_TYPE EQ RTC_DRV_OLD
+;----------------------------------------------------------------------------;
+; GLaTICK <= 0.8.3 behavior
+;
+YEAR_BCD		=	1			; store year as BCD
+		ENDIF
+
+		IF RTC_DRV_TYPE EQ RTC_DRV_86B
+;----------------------------------------------------------------------------;
+; 86Box (AST, 5PAK or EV-170)
+;
+NS_YEAR		=	NS_RAM7		; use 0EH for year storage (-80)
+YEAR_BCD		=	0			; store year as byte
+RST_STATE		=	0			; reset clock if no valid state flag
+YEAR_INCR		=	0			; year increment is handled by 86Box
+		ENDIF
+
+		IF RTC_DRV_TYPE EQ RTC_DRV_86B2
+;----------------------------------------------------------------------------;
+; 86Box (PII-147)
+;
+NS_YEAR		=	NS_RAM2		; use 09H for year storage
+NS_MONTH2		=	NS_RAM7		; use 0EH for last month
+RST_STATE		=	0			; reset clock if no valid state flag
+Y2K_OFFSET		=	0			; store as (80=1980, 00=2000, etc)
+YEAR_BCD		=	1			; store year as BCD
+YEAR_INCR		=	0			; year increment is handled by 86Box
+		ENDIF
 
 INCLUDE	GLALIB.INC
 INCLUDE	MACROS.INC
@@ -72,7 +131,7 @@ OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 		ASSUME  DS:OPTROM, SS:OPTROM, CS:OPTROM, ES:OPTROM
 PUBLIC	NS_DETECT
 EXTRN		INT_1A_DEFAULT:NEAR, PACK_BCD:NEAR, IRET_CF:NEAR, IRET_CF_1:NEAR
-EXTRN		GET_RTC:NEAR
+EXTRN		GET_RTC:NEAR, BCD_TO_BYTE:NEAR, BYTE_TO_BCD:NEAR
 
 RTC_NS_PROC PROC
 
@@ -263,7 +322,10 @@ NS_INT_1A_4_LOOP:
 	JC	NS_INT_1A_READ_ERR
 	MOV	DH, AL			; save to DH
 	MOV	AL, NS_YEAR			; read 1 and 10-year counter
-	CALL	NS_READ			; AL = year
+	CALL	NS_READ			; AL = year (ignore CF)
+			IF YEAR_BCD	EQ 0
+	CALL	BYTE_TO_BCD			; AL = BCD year
+			ENDIF
 	CMP	AL, 99H + 1			; is valid year BCD?
 	CMC					; CF if > 99
 	JC	NS_INT_1A_READ_ERR
@@ -290,6 +352,7 @@ NS_INT_1A_4_LOOP:
 	JE	NS_NO_YEAR_ROLLOVER	; if so, do nothing
 	JB	NS_UPD_MONTH		; jump if only month has changed
 
+		IF YEAR_INCR EQ 1
 ;----------------------------------------------------------------------------;
 ; Year has rolled into next: current month < NS_MONTH2
 ;
@@ -298,6 +361,7 @@ NS_INT_1A_4_LOOP:
 	DAA					; fix BCD
 	XCHG	AX, CX			; CL = incremented BCD year
 	CALL	NS_INT_1A_5			; update date on RTC
+		ENDIF
 
 ;----------------------------------------------------------------------------;
 ; Month has changed: update saved month NS_MONTH2
@@ -369,11 +433,17 @@ NS_INT_1A_5 PROC
 	ADD	AL, 20H			; store years + 20
 	DAA					; BCD adjust
 			ENDIF
+			IF YEAR_BCD	EQ 0
+	CALL	BCD_TO_BYTE			; AL = byte year
+			ENDIF
 	MOV	AH, AL			; AH = year
 	MOV	AL, NS_YEAR			; year
 	CLI
 	CALL	NS_WRITE			; write year: AL = register, AH = value
 	MOV	AL, NS_MONTH		; month
+	MOV	AH, DH
+	CALL	NS_WRITE			; write month: AL = register, AH = value
+	MOV	AL, NS_MONTH2		; previous month
 	MOV	AH, DH
 	CALL	NS_WRITE			; write month: AL = register, AH = value
 	MOV	AL, NS_DAY			; day
@@ -393,7 +463,7 @@ NS_INT_1A_5 ENDP
 ;----------------------------------------------------------------------------;
 ; Input: AL = register index, BP = 2/16 flag, DI = base port
 ; Output: DX = data port
-; Clobbers: BX
+; Clobbers: BX (on 16 port mode)
 ;----------------------------------------------------------------------------;
 NS_GET_PORT PROC
 	TEST	BP, BP			; is 2 or 16 port mode?
@@ -413,7 +483,7 @@ NS_GET_PORT PROC
 NS_SET_2:
 	MOV	DX, DI			; DX = base port
 	OUT	DX, AL			; set register index
-			IF	RTC_NS_TYPE EQ RTC_NS_TEC
+			IF RTC_NS_TYPE EQ RTC_NS_TEC
 	CMP	DX, 02C0H			; if port 2C0, data port is 2C1
 	JE	NS_TEC_DONE
 	INC	DX				; DX = data port = index port + 2
@@ -461,10 +531,12 @@ NS_CHECK_STATE ENDP
 ; Clobbers: AX, BX
 ;----------------------------------------------------------------------------;
 NS_RESET PROC
+			IF RST_STATE EQ 1
 	MOV	AX, DBW <NS_RST, NS_TIME_RST>	; counter reset register
 	CALL	NS_WRITE				; write all 1's to reset
 	MOV	AL, NS_RAM_RST			; RAM reset register
 	CALL	NS_WRITE
+			ENDIF
 	MOV	AX, DBW <NS_STATE_OK, NS_STATE>	; set state register to OK
 							; fall through to write
 NS_RESET ENDP
@@ -568,9 +640,9 @@ NS_DETECT ENDP
 ;
 ; 1. Read register 0 - if 0, maybe NS or AT (not RP)
 ; 2. Read register 0Dh and save, write AAh, read back, finally restore
-;	- if 80 or 0 then is an AT
-;	- if FAh, then likely NS
-;	- if AAh, then unknown card
+;	- if 80h or 0 then is an AT or Ricoh
+;	- if 0FAh or 0AHh, then likely NS
+;	- if 0AAh, then unknown card
 ;----------------------------------------------------------------------------;
 NS_DETECT_PORT PROC
 	PUSHF					; save IF (TODO: necessary?)
@@ -603,9 +675,13 @@ NS_DETECT_PORT PROC
 	MOV	AL, NS_RAM6			; register 0DH
 	CALL	NS_WRITE			; write back
 	XCHG	AX, DX			; AL = test read
-	AND	AL, 0FH			; is 80 or 0?
+	TEST	AL, 0FH			; is low nibble 0?
 	JZ	NS_DETECT_PORT_ND		; if so, not detected
+			IF RTC_DRV_TYPE EQ RTC_DRV_86B OR RTC_DRV_TYPE EQ RTC_DRV_86B2
+	CMP	AL, NS_TEST			; if 0AAh, then likely NS (workaround 86Box bug)
+			ELSE
 	CMP	AL, NS_TEST AND 0FH	; if 0Ah, then likely NS
+			ENDIF
 	JNZ	NS_DETECT_PORT_ND		; jump if not
 
 ;----------------------------------------------------------------------------;

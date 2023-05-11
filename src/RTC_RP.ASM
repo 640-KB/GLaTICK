@@ -4,10 +4,10 @@
 ;----------------------------------------------------------------------------;
 ; GLaTICK (Generational Logic and Time Interval Cadence Keeper)
 ;----------------------------------------------------------------------------;
-; RTC Support for RP = RP5C15 SixPakPlus V2
+; RTC Support for RP RP5C15: SixPakPlus V2
 ;----------------------------------------------------------------------------;
 ; TODO:
-; - alarms/interrupts
+; - INT 1Ah Alarm/interrupts
 ;----------------------------------------------------------------------------;
 INCLUDE	RTC.INC
 
@@ -103,8 +103,8 @@ INCLUDE 	MACROS.INC
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 
 PUBLIC	RP_DETECT
-EXTRN		INT_1A_DEFAULT:NEAR, IS_LEAP:NEAR, PACK_BCD:NEAR
-EXTRN		IRET_CF:NEAR, BCD_TO_WORD:NEAR
+EXTRN		INT_1A_DEFAULT:NEAR, IRET_CF:NEAR, IS_LEAP:NEAR
+EXTRN		PACK_BCD:NEAR, UNPACK_BCD:NEAR, BCD_TO_WORD:NEAR
 
 ;----------------------------------------------------------------------------;
 ; INT 1A IVT for RP RP5C15 
@@ -493,7 +493,7 @@ RP_READ ENDP
 RP_WRITE_BCD PROC
 	MOV	BX, AX			; save starting index
 	XCHG	AH, AL			; AL = register value
-	UNPACK_BCD				; unpack BCD digits in AL into AH/AL
+	CALL	UNPACK_BCD			; unpack BCD digits in AL into AH/AL
 	MOV	BH, AH			; save high digit
 	MOV	AH, AL			; AH = low digit
 	MOV	AL, BL			; AL = starting index
@@ -557,7 +557,7 @@ RP_SET_BANK ENDP
 ;----------------------------------------------------------------------------;
 ;RP_WRITE_BANK2 PROC
 ;	PUSH	AX
-;	UNPACK_BCD				; AH = bank, AL = register index
+;	CALL	UNPACK_BCD			; AH = bank, AL = register index
 ;	MOV	BL, AH			; BL = bank
 ;	POP	AX
 ;RP_WRITE_BANK2 ENDP
