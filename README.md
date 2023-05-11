@@ -29,15 +29,15 @@ GLaTICK eliminates the need for DOS-based RTC clock drivers/programs letting you
 
 ## Screenshots
 
-SixPakPlus at `2C0h` on [GLaBIOS](https://github.com/640-KB/GLaBIOS):
+#### SixPakPlus at `2C0h` on [GLaBIOS](https://github.com/640-KB/GLaBIOS):
 
 ![SixPakPlus GLaBIOS](https://github.com/640-KB/GLaTICK/blob/main/images/glatick_nc_gb_cga_2.png)
 
-RTC_8088 on PC/XT:
+#### RTC_8088 on PC/XT:
 
 <img src="https://raw.githubusercontent.com/640-KB/GLaTICK/main/images/glatick_at_pc_mda_1.png" width="653" />
 
-86Box ISA RTC with local time syncronization:
+#### 86Box ISA RTC with local time syncronization:
 
 <img src="https://github.com/640-KB/GLaTICK/assets/23486433/ba77fb20-96a8-4dc6-8ccb-c47ca1b5c3e2" width="653" />
 
