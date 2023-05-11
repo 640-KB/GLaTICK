@@ -39,7 +39,7 @@ GLaTICK eliminates the need for DOS-based RTC clock drivers/programs letting you
 
 #### 86Box ISA RTC with local time syncronization:
 
-<img src="https://github.com/640-KB/GLaTICK/assets/23486433/9a4f22b4-7808-40a0-99fd-e08096c4ab18" width="653" />
+<img src="https://github.com/640-KB/GLaTICK/assets/23486433/8894315f-b227-4874-ae89-5021d0767b31" width="653" />
 
 ### Build:
 
