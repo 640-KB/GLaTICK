@@ -48,6 +48,6 @@ PACK_NIB	MACRO
 ; Clear ISA bus before I/O port read
 ;----------------------------------------------------------------------------;
 ISA_CLEAR	MACRO
-	MOV	AL, 0FFH			; write all 1s to bus to clear buffer ICs
-	OUT	0C0H, AL			; write to any unused port
+	MOV	AL, 0FFH		; write all 1s to bus to clear buffer ICs
+	OUT	0BFH, AL		; write to any unused port
 		ENDM
