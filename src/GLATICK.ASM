@@ -40,8 +40,8 @@
 ;
 ;----------------------------------------------------------------------------;
 VER_NAME		EQU	'GLaTICK'
-VER_NUM		EQU	'0.8.4'		; (max 6 chars)
-VER_DATE		EQU	'05/11/23' 		; must be MM/DD/YY format
+VER_NUM		EQU	'0.8.5'		; (max 6 chars)
+VER_DATE		EQU	'07/31/23' 		; must be MM/DD/YY format
 COPY_YEAR		EQU	'2023'
 
 ;----------------------------------------------------------------------------;
