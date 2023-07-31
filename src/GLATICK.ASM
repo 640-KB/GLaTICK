@@ -797,7 +797,7 @@ CHECK_YYYY:
 	CMP	AX, 1980				; is < 1980?
 	JB	VAL_DATE_RET			; if so, invalid (CF)
 	CMP	AX, 2079				; is > 2079?
-	JA	VAL_DATE_ERR			; if so, invalid (NC)
+	JA	VAL_DATE_RET_CMC			; if so, invalid (NC)
 
 ;----------------------------------------------------------------------------;
 ; Validate month is 01-12
@@ -805,10 +805,9 @@ CHECK_YYYY:
 CHECK_MONTH:
 	MOV	AL, DH				; AL = BCD month
 	CALL	BCD_TO_BYTE				; AL = BYTE month
-	TEST	AL, AL				; is 0?
-	JZ	VAL_DATE_ERR			; if so, not valid (ZF)
-	CMP	AL, 12				; is > 12?
-	JA	VAL_DATE_ERR			; if so, not valid (NC)
+	DEC	AX					; convert to 0-based month (0-11)
+	CMP	AL, 12				; is 1-12?
+	JNC	VAL_DATE_RET_CMC			; if not, invalid (NC)
 
 ;----------------------------------------------------------------------------;
 ; Validate day is 01-31
@@ -816,16 +815,12 @@ CHECK_MONTH:
 CHECK_DAY:
 	MOV	AL, DL				; AL = BCD day
 	CALL	BCD_TO_BYTE				; AL = BYTE day
-	TEST	AL, AL				; is 0?
-	JZ	VAL_DATE_ERR			; if so, not valid
-	CMP	AL, 31				; is <= 31?
-	CMC						; if not, not valid (CF)
+	DEC	AX					; convert to 0-based day (0-30)
+	CMP	AL, 31				; is 1-31?
+VAL_DATE_RET_CMC:
+	CMC						; CF = ! CF
 VAL_DATE_RET:
 	RET						; return with current CF
-VAL_DATE_ERR:
-	STC						; return with CF = 1
-	RET
-
 VALIDATE_DATE ENDP
 
 ;----------------------------------------------------------------------------;
