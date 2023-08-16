@@ -36,14 +36,6 @@ RTC_DAT	RECORD	RTTYPE:4, RTPORT:12
 GFLAGS 	RECORD	GTBD1:3, TURBO:1, V20:1, GTBD2:2
 
 ;----------------------------------------------------------------------------;
-; POST alternate stack
-;----------------------------------------------------------------------------;
-_ALT_STACK	SEGMENT AT 50H
-		ORG 100H
-_ALT_STACK_TOP	DW 	?
-_ALT_STACK	ENDS
-
-;----------------------------------------------------------------------------;
 ; 0040:0000 - BIOS data area (BDA)
 ;----------------------------------------------------------------------------;
 ; https://stanislavs.org/helppc/bios_data_area.html
