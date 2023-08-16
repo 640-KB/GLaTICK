@@ -18,7 +18,7 @@ POST_R		EQU	<' ]'>		; right separator string
 ;----------------------------------------------------------------------------;
 ; RTC Data (40:B0H)
 ;----------------------------------------------------------------------------;
-; High nibble = RTC type (0-15)
+; High nibble = RTC type (0-15) - see RTC.INC
 ; Low 3 nibbles = I/O port address
 ;----------------------------------------------------------------------------;
 RTC_DAT	RECORD	RTTYPE:4, RTPORT:12
@@ -27,19 +27,21 @@ RTC_DAT	RECORD	RTTYPE:4, RTPORT:12
 ; GLaBIOS Equipment Flags (40:12H)
 ;----------------------------------------------------------------------------;
 ; 76543210
-; x 	    |		- TBD		: Reserved
-;  xxx    |		- RTCT	; RTC Type (not used)
-;         |				; 0 = none
-;         |				; 1 = AT = DS1285/MC146818	* AT/70H
-;         |				; 2 = OK = MSM5832		* Quadram
-;         |				; 3 = NS = MM58167AN		* SixPakPlus V1/Gen I/O board
-;         |				; 4 = RP = RP5C15 		* SixPakPlus V2
+; xxxx    |		- TBD		: Reserved
 ;     x   |		- TURBO	: Turbo supported
 ;      x  |		- V20		: 1 if V20, 0 if 8088
 ;       xx|		- TBD2
 ; 84218421
 ;----------------------------------------------------------------------------;
-GFLAGS 	RECORD	GTBD1:1, RTCT:3, TURBO:1, V20:1, GTBD2:2
+GFLAGS 	RECORD	GTBD1:3, TURBO:1, V20:1, GTBD2:2
+
+;----------------------------------------------------------------------------;
+; POST alternate stack
+;----------------------------------------------------------------------------;
+_ALT_STACK	SEGMENT AT 50H
+		ORG 100H
+_ALT_STACK_TOP	DW 	?
+_ALT_STACK	ENDS
 
 ;----------------------------------------------------------------------------;
 ; 0040:0000 - BIOS data area (BDA)
@@ -49,11 +51,13 @@ GFLAGS 	RECORD	GTBD1:1, RTCT:3, TURBO:1, V20:1, GTBD2:2
 _BDA		SEGMENT AT 40H
 		ORG 012H
 GB_FLAGS		GFLAGS <> 			; 12H  Custom Equipment Flags
+		ORG 067H
+ROM_INIT_SS		DW	?			; 67H   or Temp location for SS:SP during block move
+ROM_INIT_SP 	DW	? 			; 69H	  or Option ROM init
 		ORG 06CH
 TIMER_CT_L		DW	?			; 6CH  Timer Counter Low Word (ticks)
 TIMER_CT_H  	DW	? 			; 6EH  Timer Counter High Word (hours)
 TIMER_CT_OF 	DB	? 			; 70H  Timer Overflow flag
-
 		ORG	0B0H
 RTC_DATA		RTC_DAT <>			; B0H  GLaTICK address and RTC type
 _BDA		ENDS

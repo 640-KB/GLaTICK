@@ -28,20 +28,20 @@
 ; - MM58167:		*240h, *340h, *2C0h, 250h, *300h, 350h, 377h, 037Dh, 027Dh
 ; - RP5C15:			*2C0h
 ; - MSM6242:		2C0h, 240h, 250h, 300h, 340h, 350h
+; - DS1216E/DS1315	F600h-FE00h
 ;
 ; TODO:
 ; - RTC Detection with overlapping port numbers: 240h, 2C0h, 340h
 ; - Other Clock Types:
 ;	- MSM-58321 (is different than 5832?):	2C0, 27E, 37E, 02A2-02A3?
-;	- DS1216E/DS1315 "SmartWatch"
 ; - INT 1Ah services 6h and 7h (where supported)
 ;
 ; https://bochs.sourceforge.io/techspec/PORTS.LST
 ;
 ;----------------------------------------------------------------------------;
 VER_NAME		EQU	'GLaTICK'
-VER_NUM		EQU	'0.8.5'		; (max 6 chars)
-VER_DATE		EQU	'07/31/23' 		; must be MM/DD/YY format
+VER_NUM		EQU	'0.8.6'		; (max 6 chars)
+VER_DATE		EQU	'08/14/23' 		; must be MM/DD/YY format
 COPY_YEAR		EQU	'2023'
 
 ;----------------------------------------------------------------------------;
@@ -109,15 +109,34 @@ ROM_HEADER	ENDP
 			ORG	0003H			; fixed offset for INIT
 ROM_INIT	PROC
 	PUSHF
-	PUSH	AX					; preserve all registers
+	PUSH	AX					; preserve working registers
+	PUSH	DX
 	PUSH	DS
+			ASSUME DS:_BDA
+
+			IF POST_ALT_STACK EQ 1
+;----------------------------------------------------------------------------;
+; Relocate stack during init procedure
+;----------------------------------------------------------------------------;
+	CLI
+	MOV	DS, SP				; DS = old SP
+	MOV	DX, SS				; DX = old SS
+	MOV	AX, SEG _ALT_STACK_TOP
+	MOV	SS, AX
+	MOV	SP, OFFSET _ALT_STACK_TOP
+	PUSH	DS					; save SP to new stack
+	PUSH	DX					; save SS
+			ENDIF
+
+;----------------------------------------------------------------------------;
+; Ensure GLaTICK has not already been loaded
+;
 	MOV	AX, SEG _BDA 			; CX = BDA segment, CH = 0
 	MOV	DS, AX 				; DS = BDA
-			ASSUME DS:_BDA	
 	CMP	RTC_DATA, 0				; already been set up?
-	JNZ	DETECT_EXIT				; exit if so
-	PUSH	DX
-	PUSH	SI
+	JNZ	ROM_INIT_DONE			; exit if so
+
+	PUSH	SI					; preserve additional registers
 	PUSH	DI
 	PUSH	ES
 
@@ -193,7 +212,7 @@ DETECT_OK:
 
 			IFDEF RTC_SW
 ;----------------------------------------------------------------------------;
-; Check for DS-1216x "SmartWatch" (incomplete)
+; Check for DS-1216x "SmartWatch"
 ;----------------------------------------------------------------------------;
 EXTRN		SW_DETECT:NEAR
 DETECT_SW:
@@ -262,9 +281,22 @@ DETECT_DONE:
 	POP	ES				; restore all regs
 	POP	DI
 	POP	SI
-	POP	DX
-DETECT_EXIT:
+
+ROM_INIT_DONE:
+
+			IF POST_ALT_STACK EQ 1
+;----------------------------------------------------------------------------;
+; Restore relocated stack during init procedure
+;----------------------------------------------------------------------------;
+	CLI
+	POP	DX					; restore SS
+	POP	AX					; restore SP
+	MOV	SS, DX
+	MOV	SP, AX
+			ENDIF
+
 	POP	DS
+	POP	DX
 	POP	AX
 	POPF
 	RETF					; return from option ROM init call
@@ -307,6 +339,11 @@ PRINT_DETECTED PROC
 	TEST	DI, DI				; port number zero?
 	JZ	RTC_DONE				; if zero, do not display
 	MOV	AX, DI				; AX = port number to display
+			IFDEF RTC_SW
+			REPT	WIDTH RTTYPE
+	SHL	AX, 1					; hack for SW ROM display
+			ENDM
+			ENDIF
 	TEST	AH, AH				; if port is < 100H, show only 
 	JZ	PORT_BYTE				;  two digits
 	CALL	WORD_HEX				; display port as WORD

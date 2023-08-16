@@ -14,6 +14,7 @@
 ; - RTC_RP, RTC_NS, RTC_NS2
 ; - RTC_OK, RTC_OK2
 ; - RTC_AT
+; - RTC_SW
 ;----------------------------------------------------------------------------;
 RTC_NONE		EQU	0			; No RTC installed
 
@@ -27,7 +28,7 @@ RTC_AT		EQU	1			; 1  AT  - DS12x85/MC146818
 ;RTC_OK2		EQU	5			; 5  OK2 - MSM6242
 
 ;RTC_OK1		EQU	4			; 4  OK1 - MSM58321 (in progress)
-;RTC_SW		EQU	8			; 8  SW  - DS1216x/DS1315 SmartWatch (in progress)
+;RTC_SW		EQU	8			; 8  SW  - DS1216x/DS1315 SmartWatch
 
 ;----------------------------------------------------------------------------;
 ; Some clock programs store year where 00 = 1980, 20 = 2000, etc
@@ -47,3 +48,18 @@ Y2K_OFFSET		=	0			; Store year as YY+20
 ;   driver. This may be helpful for debugging clock read issues.
 ;
 RESET_ON_ERROR	=	1			; reset date if error on POST
+
+;----------------------------------------------------------------------------;
+; Relocate stack during POST to avoid conflict with badly behaving ROMs
+;
+POST_ALT_STACK	=	0			; use BIOS stack during POST
+
+;----------------------------------------------------------------------------;
+; Per-clock configuration below
+;
+			IFDEF RTC_SW
+POST_ALT_STACK	=	1			; use alternate stack during POST
+							;  due to large amount of stack
+							;  space required
+RESET_ON_ERROR	=	1			; reset date if error on POST
+			ENDIF

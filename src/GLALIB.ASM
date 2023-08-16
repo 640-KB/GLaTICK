@@ -20,6 +20,8 @@ INCLUDE	MACROS.INC
 INCLUDE	SEGS.INC
 INCLUDE	RTC.INC
 
+GLALIB	PROC
+
 ;----------------------------------------------------------------------------;
 ; Are you still there?
 ;----------------------------------------------------------------------------;
@@ -39,7 +41,7 @@ IS_GLABIOS	PROC
 IS_GLABIOS	ENDP
 
 ;----------------------------------------------------------------------------;
-; IRET with all previous flags and current CF
+; IRET with all previous status flags and current CF
 ;----------------------------------------------------------------------------;
 IRET_CF PROC NEAR
 	PUSH	BP
@@ -50,7 +52,7 @@ IRET_CF PROC NEAR
 ;----------------------------------------------------------------------------;
 IRET_CF_1 PROC NEAR
 	MOV	BP, SP				; get stack frame
-	LAHF						; AH = current flags
+	LAHF						; AH = current status flags
 	AND	AH, 1b				; isolate CF flag bit
 	AND	BYTE PTR [BP][8], NOT 1b	; clear CF bit in saved EFLAGS
 	OR	[BP][8], AH				; set current CF bit
@@ -318,6 +320,8 @@ MOVE_COL_SET:
 MOVE_COL ENDP
 POST_COL ENDP
 		;ENDIF
+
+GLALIB	ENDP
 
 OPTROM	ENDS
 		END

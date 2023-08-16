@@ -51,3 +51,23 @@ ISA_CLEAR	MACRO
 	MOV	AL, 0FFH		; write all 1s to bus to clear buffer ICs
 	OUT	0BFH, AL		; write to any unused port
 		ENDM
+
+;----------------------------------------------------------------------------;
+; PUSH multiple registers (up to 8)
+;----------------------------------------------------------------------------;
+PUSHX	MACRO r1, r2, r3, r4, r5, r6, r7, r8
+			IFNB <r1>			; exit if last reg
+	PUSH	r1 					; push register and repeat
+	PUSHX	r2, r3, r4, r5, r6, r7, r8
+			ENDIF
+		ENDM
+
+;----------------------------------------------------------------------------;
+; POP multiple registers (up to 8)
+;----------------------------------------------------------------------------;
+POPX	MACRO r1, r2, r3, r4, r5, r6, r7, r8
+			IFNB <r1>			; exit if last reg
+	POP	r1 					; pop register and repeat
+	POPX	r2, r3, r4, r5, r6, r7, r8
+			ENDIF
+		ENDM
