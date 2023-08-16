@@ -4,7 +4,7 @@ A real time clock PC BIOS [Companion ROM](https://github.com/640-KB/GLaBIOS/wiki
 
 GLaTICK eliminates the need for DOS-based RTC clock drivers/programs letting your supported RTC "just work" like later PCs.
 
-## Pre-release Version 0.8:
+## Version 0.8:
 
 [Download ROMs](https://github.com/640-KB/GLaTICK/releases)
 
@@ -19,6 +19,7 @@ GLaTICK eliminates the need for DOS-based RTC clock drivers/programs letting you
   - **RP5C15** used by SixPakPlus V2
   - **MSM5832** used by Quadram, DTK PII-125
   - **MSM6242**	used by Intel Above Board and other MSM-6242 boards
+  - **DS1216x/DS1315**	SmartWatch "No-Slot" ROM socket clocks
 
 ## Requirements
 
