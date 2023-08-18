@@ -33,7 +33,7 @@
 ; TODO:
 ; - RTC Detection with overlapping port numbers: 240h, 2C0h, 340h
 ; - Other Clock Types:
-;	- MSM-58321 (is different than 5832?):	2C0, 27E, 37E, 02A2-02A3?
+;	- MSM-58321:	2C0, 27E, 37E, 02A2-02A3?
 ; - INT 1Ah services 6h and 7h (where supported)
 ;
 ; https://bochs.sourceforge.io/techspec/PORTS.LST
@@ -50,6 +50,7 @@ COPY_YEAR		EQU	'2023'
 SHOW_BANNER		=	1			; always show full banner at POST
 SHOW_RTC		=	1			; show detected RTC and clock
 SHOW_CLOCK		=	1			; if above, show date/time at POST
+PAUSE_BANNER	=	0			; pause after showing banner
 
 MAGIC_WORD		EQU	0AA55H		; Magic Word used for option ROM
 ROM_SIZE		EQU	800H			; size of ROM (2K)
@@ -131,7 +132,7 @@ ROM_INIT	PROC
 ;----------------------------------------------------------------------------;
 ; Ensure GLaTICK has not already been loaded
 ;
-	MOV	AX, SEG _BDA 			; CX = BDA segment, CH = 0
+	MOV	AX, SEG _BDA 			; AX = BDA segment, AH = 0
 	MOV	DS, AX 				; DS = BDA
 	CMP	RTC_DATA, 0				; already been set up?
 	JNZ	ROM_INIT_DONE			; exit if so
@@ -147,12 +148,12 @@ ROM_INIT	PROC
 	CALL	IS_GLABIOS				; is GLaBIOS?
 	JZ	DETECT_RTCS				; if so, don't display banner
 	PRINTLN_SZ VER_BANNER			; otherwise display it
-			ENDIF
 
 ;----------------------------------------------------------------------------;
 ; Detect Supported RTCs
 ;----------------------------------------------------------------------------;
 DETECT_RTCS:
+			ENDIF
 
 			IFDEF RTC_AT
 ;----------------------------------------------------------------------------;
@@ -277,6 +278,26 @@ DETECT_SET:
 DETECT_DONE:
 			IF SHOW_RTC EQ 1
 	CALL	PRINT_DETECTED		; display on POST screen
+
+			IF PAUSE_BANNER EQ 1
+;----------------------------------------------------------------------------;
+; Optionally pause a little bit to allow output to be displayed if system
+; BIOS clears the screen before option ROMs can be read.
+;
+	CALL	IS_GLABIOS
+	JZ	PAUSE_END			; unnecessary to pause on GLaBIOS
+	XCHG	AX, CX			; preserve CX (necessary?)
+	XOR	CX, CX
+PAUSE_LOOP_1:
+	MOV	DI, 10H			; arbitrary pause duration
+PAUSE_LOOP_2:
+	DEC	DI
+	JNZ	PAUSE_LOOP_2
+	LOOP	PAUSE_LOOP_1
+	XCHG	AX, CX			; restore CX
+PAUSE_END:
+			ENDIF			; end optional pause
+
 			ENDIF
 	POP	ES				; restore all regs
 	POP	DI

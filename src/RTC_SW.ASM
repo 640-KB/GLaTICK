@@ -4,7 +4,7 @@
 ;----------------------------------------------------------------------------;
 ; GLaTICK (Generational Logic and Time Interval Cadence Keeper)
 ;----------------------------------------------------------------------------;
-; RTC Support for DS-1216x/DS1315 "SmartWatch".
+; RTC Support for DS-1216x/DS1315 "SmartWatch" ROM.
 ;
 ; TODO:
 ;	- RAM
@@ -27,20 +27,27 @@ TEST_MMDD	EQU	0814H		; month / day
 TEST_YY	EQU	23H		; year
 TEST_HHMM	EQU	1009H		; hour / minute
 TEST_SS	EQU	33H		; seconds
-TEST_READ	EQU	10H
+TEST_READ	EQU	10H		; a valid register byte (2010-10-10 10:10:10)
 			ENDIF
 
 ;----------------------------------------------------------------------------;
-; F000:0000 - SmartWatch RAM access segment/offsets
+; F600:0000 - SmartWatch ROM access segment and address offsets
 ;----------------------------------------------------------------------------;
+; The SmartWatch uses the ROM's address lines for data transfer in and out.
+;
 ; Scan for clock begins at the below segment, and at every 8K segment 
 ; boundary until 0000h.
 ;----------------------------------------------------------------------------;
 _SW_ACC	SEGMENT AT 	0F600H	; set the start segment for scan
-		ORG	0010B
-SW_WR0	DB	?		; 010 Set Read/Write=Write, D0=00H
-SW_WR1	DB	?		; 011 Set Read/Write=Write, D0=01H
-SR_RD		DB	?		; 100 Set Read/Write=Read,  D0=XX
+;_SW_ACC	SEGMENT AT 	0C000H	; set the start segment for scan
+
+;----------------------------------------------------------------------------;
+; Non-interleaved ROM access offsets
+;
+			ORG	0010B
+SW_WR0	DB	?		; 010b: A2=write, A0=0
+SW_WR1	DB	?		; 011b: A2=write, A0=1
+SR_RD		DB	?		; 100b: A2=read,  DQ0=in
 _SW_ACC	ENDS
 
 ;----------------------------------------------------------------------------;
@@ -56,7 +63,6 @@ SW_REG_DATE	DB	?		; 05h: day of month (01-31)
 SW_REG_MON	DB	?		; 06h: month (01-12)
 SW_REG_YEAR	DB	?		; 07h: year (00-99)
 SW_REG	ENDS
-SW_DATA_SZ	EQU	SIZE SW_REG	; 8 bytes size
 
 ;----------------------------------------------------------------------------;
 ; SW 00h: centi-sec (00-99)
@@ -138,6 +144,9 @@ SW_MON	RECORD	MNX1:3, MON10:1, MON01:4
 ;     xxxx		- YR01:	1 year (0-9)
 ;----------------------------------------------------------------------------;
 SW_YEAR	RECORD	YR10:4, YR01:4
+
+SW_DATA_SZ	EQU	SIZE SW_REG				; 8 byte buffer size
+SW_DATA_SZB	EQU	SW_DATA_SZ * WIDTH SW_CS 	; 64 bit buffer size
 
 INCLUDE 	GLALIB.INC
 INCLUDE 	MACROS.INC
@@ -573,7 +582,7 @@ SW_READ_BIT:
 	DEC	CH					; decrement bit counter
 	JNZ	SW_READ_BIT				; loop until end of byte
 			IF TEST_MODE EQ 1
-	MOV	AL, TEST_READ			; test data byte read
+	MOV	AH, TEST_READ			; test data byte read
 			ENDIF
 	MOV	[SI], AH				; save byte to data buffer
 	INC	SI					; next output byte in buffer
@@ -641,7 +650,17 @@ SW_WRITE_ALL PROC
 ; Clobbers: AX, CX, SI
 ;----------------------------------------------------------------------------;
 SW_ACCESS	PROC
-	MOV	AH, ES:SR_RD			; reset comparison register pointer
+
+;----------------------------------------------------------------------------;
+; When power is cycled, 64 reads should be executed prior to any writes to 
+; ensure that the RTC registers are not written.
+;
+	MOV	CX, SW_DATA_SZB + 1
+SW_ACCESS_CLEAR:
+	MOV	AL, ES:SR_RD			; read next bit from RTC
+	LOOP	SW_ACCESS_CLEAR
+	IO_DELAY_SHORT				; short delay before continuing
+
 	LEA	SI, _RAM_ACC			; RAM access data pattern
 							; fall through to write
 
@@ -765,11 +784,12 @@ DOW PROC
 ; (3 = March, 4 = April, 5 = May, ..., 14 = February)
 ;
 	SUB	AL, 2			; compare and perform (m-2) operation below
+					;  (1 = Mar, ..., 10 = Dec)
 	JA	DOW_1			; jump if Mar-Dec
 	ADD	AL, 12		; 11 = Jan, 12 = Feb
 
 ;----------------------------------------------------------------------------;
-; decrement year in BCD
+; if Jan or Feb, decrement year (in BCD)
 ;
 	XCHG	AX, CX		; AX = year (BCD)
 	SUB	AL, 1			; decrement low digits
@@ -812,11 +832,11 @@ DOW_1:
 ;
 	MOV	AL, CH		; J century
 	CALL	BCD_TO_BYTE
-	PUSH	AX			; save byte century
+	MOV	CX, AX		; save byte century
 	SHR	AX, 1			; J / 4
 	SHR	AX, 1
 	ADD	BX, AX		; add to running sum
-	POP	AX
+	XCHG	AX, CX		; restore byte century
 
 ;----------------------------------------------------------------------------;
 ; + 5*J

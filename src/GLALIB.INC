@@ -50,8 +50,8 @@ ROM_INIT_SP 	DW	? 			; 69H	  or Option ROM init
 TIMER_CT_L		DW	?			; 6CH  Timer Counter Low Word (ticks)
 TIMER_CT_H  	DW	? 			; 6EH  Timer Counter High Word (hours)
 TIMER_CT_OF 	DB	? 			; 70H  Timer Overflow flag
-		ORG	0B0H
-RTC_DATA		RTC_DAT <>			; B0H  GLaTICK address and RTC type
+		ORG	0EEH
+RTC_DATA		RTC_DAT <>			; EEH  GLaTICK address and RTC type
 _BDA		ENDS
 
 ;----------------------------------------------------------------------------;
