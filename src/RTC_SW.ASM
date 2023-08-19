@@ -47,7 +47,7 @@ _SW_ACC	SEGMENT AT 	0F600H	; set the start segment for scan
 			ORG	0010B
 SW_WR0	DB	?		; 010b: A2=write, A0=0
 SW_WR1	DB	?		; 011b: A2=write, A0=1
-SR_RD		DB	?		; 100b: A2=read,  DQ0=in
+SW_RD		DB	?		; 100b: A2=read,  DQ0=in
 _SW_ACC	ENDS
 
 ;----------------------------------------------------------------------------;
@@ -146,7 +146,7 @@ SW_MON	RECORD	MNX1:3, MON10:1, MON01:4
 SW_YEAR	RECORD	YR10:4, YR01:4
 
 SW_DATA_SZ	EQU	SIZE SW_REG				; 8 byte buffer size
-SW_DATA_SZB	EQU	SW_DATA_SZ * WIDTH SW_CS 	; 64 bit buffer size
+SW_DATA_SZB	EQU	SIZE SW_REG * WIDTH SW_CS 	; 64 bit buffer size
 
 INCLUDE 	GLALIB.INC
 INCLUDE 	MACROS.INC
@@ -576,7 +576,7 @@ SW_READ_BYTE:
 	MOV	CH, 8					; read 8 bits (1 byte)
 	CBW						; AH = working data byte
 SW_READ_BIT:
-	MOV	AL, ES:SR_RD			; read next bit from RTC
+	MOV	AL, ES:SW_RD			; read next bit from RTC
 	SHR	AL, 1					; CF = bit read
 	RCR	AH, 1					; shift and add bit to working byte
 	DEC	CH					; decrement bit counter
@@ -657,7 +657,7 @@ SW_ACCESS	PROC
 ;
 	MOV	CX, SW_DATA_SZB + 1
 SW_ACCESS_CLEAR:
-	MOV	AL, ES:SR_RD			; read next bit from RTC
+	MOV	AL, ES:SW_RD			; read next bit from RTC
 	LOOP	SW_ACCESS_CLEAR
 	IO_DELAY_SHORT				; short delay before continuing
 
@@ -801,15 +801,12 @@ DOW PROC
 	XCHG	AX, CX		; CX = decremented year (BCD)
 
 ;----------------------------------------------------------------------------;
-; + 13(m-2)/5
+; + 31(m-2)/12
 ;
 DOW_1:
-	MOV	AH, 13
-	MUL	AH			; AX = AL * 13
-	DB	0D4H, 5		; AAM 10H ; AH = quotient
-	XCHG	AH, AL		; AL = quotient
-	;MOV	DL, 5			; alt use DIV instead of AAM imm
-	;DIV	DL
+	MOV	DX, DBW <31, 12>	; DH = 31, DL = 12
+	MUL	DH			; AX = AL * 31
+	DIV	DL			; AL = AX / 12
 	XOR	AH, AH		; zero extend AL
 	ADD	BX, AX		; add to running sum	
 
