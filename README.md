@@ -54,11 +54,10 @@ The included `OPT2ROM.COM` will convert the produced EXE file to a 2 KiB ROM fil
 
 - Support for additional RTCs including:
   - MSM-58321
-  - DS1216 / DS1315 "Smart Watch"
-- `INT 1Ah` ALARM (`6h` and `7h`) (where supported)
+  - Dallas DS1644 Timekeeper
 
 ### Credits:
 
 - @PickledDog, for the name
 
-Copyright &copy; 2023, [640KB](mailto:640kb@glabios.org) and contributors.
+Copyright &copy; 2023-24, [640KB](mailto:640kb@glabios.org) and contributors.
