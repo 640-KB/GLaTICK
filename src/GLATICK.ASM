@@ -35,13 +35,15 @@
 ; - Other Clock Types:
 ;	- MSM-58321:	2C0, 27E, 37E, 02A2-02A3?
 ; - INT 1Ah services 6h and 7h (where supported)
+; - Clean up include/config file structure
+; - Command line build process
 ;
 ; https://bochs.sourceforge.io/techspec/PORTS.LST
 ;
 ;----------------------------------------------------------------------------;
 VER_NAME		EQU	'GLaTICK'
 VER_NUM		EQU	'0.8.6'		; (max 6 chars)
-VER_DATE		EQU	'08/14/23' 		; must be MM/DD/YY format
+VER_DATE		EQU	'08/18/23' 		; must be MM/DD/YY format
 COPY_YEAR		EQU	'2023'
 
 ;----------------------------------------------------------------------------;
@@ -736,33 +738,31 @@ TIME_TO_TICKS PROC
 	ADD	AX, CX			; AX = total minutes (hour + min)
 	MOV	CL, 60			; convert minutes to seconds
 	MUL	CX				; DX:AX = total seconds (hour + min)
-	ADD	AX, DI			; add second to sum
+	ADD	DI, AX			; add second to sum
 	ADC	DX, 0				; carry to high word
+	PUSHF					; ZF if seconds < 65536
 
 ;----------------------------------------------------------------------------;
 ; Convert Ticks = seconds * 1193180 / 65536
 ;
 ; This is a 21 bit x 17 bit multiply, which can be simplified for 16 bit
-; operations by adjusting to a 22 x 16 bit multiply using the following: 
-;	A*B == A/2 * B*2 + B[A is odd]
+; operations by using the following:
+; 	(AX * 1193180) >> 8 + DX * 1193180
 ;
-	SHR	DX, 1				; divide seconds by 2 to fit in word
-	RCR	AX, 1				; shift into high bit of low word
-	PUSHF					; save CF if odd
-	XCHG	AX, DI			; DI = low total seconds (hour + min)
-	MOV	AX, 34DCH * 2		; low ( 1193180 * 2 )
-	MUL	DI				; DX:AX = low ( ticks * 2 ) * sec / 2
-	POPF					; restore CF
-	JNC	TTT_EVEN_SEC		; skip if even
-	ADD	AX, 34DCH			; add 1 second of ticks if an odd second
-	ADC	DX, 12H			;  was shifted off
-TTT_EVEN_SEC:
+	MOV	AX, 34DCH			; low ( 1193180 * 2 )
+	MUL	DI				; DX = low ( ticks * sec ) >> 8
 	MOV	CX, DX			; CX:AX = working product
-	MOV	AX, 12H * 2			; high ( 1193180 * 2 )
-	MUL	DI				; DX:AX = high ( ticks * 2 ) * sec / 2
-	ADD	CX, AX			; add working products
-	ADC	DX, 0				; carry to high word
-	XCHG	DX, CX			; move to CX:DX
+	MOV	AX, 12H			; high ( 1193180 * 2 )
+	MUL	DI				; DX:AX = high ( ticks * sec )
+	ADD	AX, CX			; add working products and carry
+	ADC	DX, 0				; DX:AX = ( AX * 1193180 ) >> 8
+	POPF					; restore ZF
+	JZ	TTT_HIGH			; jump if < 65536
+	ADD	AX, 34DCH			; add 1 second of ticks to high word
+	ADC	DX, 12H			;  if high bit (17) was 1
+TTT_HIGH:
+	XCHG	AX, DX			; move to CX:DX
+	XCHG	AX, CX
 	POP	DI
 	RET
 TIME_TO_TICKS ENDP
