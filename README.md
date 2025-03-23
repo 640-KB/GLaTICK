@@ -14,7 +14,7 @@ GLaTICK eliminates the need for DOS-based RTC clock drivers/programs letting you
 
 - Implements `INT 1Ah` RTC functionality for seamless clock support. Real time clock is set and read by DOS - no software needed!
 - Support for many popular ICs including:
-  - **DS12x85/MC146818** used by [RTC ISA 8 bits](https://www.tindie.com/products/spark2k06/rtc-isa-8-bits-very-low-profile-2/?utm_source=glabios&utm_medium=link&utm_campaign=project_buynow), [NuXT](https://monotech.fwscart.com/NuXT_v20_-_MicroATX_Turbo_XT_-_10MHz_832K_XT-IDE_Multi-IO_SVGA/p6083514_19777986.aspx), [AT/CMOS](https://hackaday.io/project/168972-rtc-isa-8-bits-pcxt) (Ports `70h`, `240h`, `2C0h`)
+  - **DS12x85/MC146818/BQ3285S** used by [RTC ISA 8 bits](https://www.tindie.com/products/spark2k06/rtc-isa-8-bits-very-low-profile-2/?utm_source=glabios&utm_medium=link&utm_campaign=project_buynow), [NuXT](https://monotech.fwscart.com/NuXT_v20_-_MicroATX_Turbo_XT_-_10MHz_832K_XT-IDE_Multi-IO_SVGA/p6083514_19777986.aspx), [AT/CMOS](https://hackaday.io/project/168972-rtc-isa-8-bits-pcxt), [Necroware nwX287](https://github.com/necroware/nwX287) (Ports `70h`, `240h`, `2C0h`)
   - **MM58167/UM82C8167** used by SixPakPlus V1, Turbo 33-XT, Many clone I/O boards (Ports `2C0h`, `240h`, `340h`)
   - **RP5C15** used by SixPakPlus V2
   - **MSM5832** used by Quadram, DTK PII-125
