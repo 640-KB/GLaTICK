@@ -51,10 +51,8 @@ IRET_CF PROC NEAR
 ;----------------------------------------------------------------------------;
 IRET_CF_1 PROC NEAR
 	MOV	BP, SP				; get stack pointer
-	PUSHF						; save current CF
-	SHR	BYTE PTR [BP][6], 1		; clear CF bit in INT flags
-	POPF						; restore current CF
-	RCL	BYTE PTR [BP][6], 1		; move CF to INT flags
+	RCR	BYTE PTR [BP][6], 1		; current CF to MSB
+	ROL	BYTE PTR [BP][6], 1		; MSB to saved CF, restore CF
 	POP	BP
 	IRET
 IRET_CF_1 ENDP
