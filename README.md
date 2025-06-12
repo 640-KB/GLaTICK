@@ -60,4 +60,4 @@ The included `OPT2ROM.COM` will convert the produced EXE file to a 2 KiB ROM fil
 
 - @PickledDog, for the name
 
-Copyright &copy; 2023-24, [640KB](mailto:640kb@glabios.org) and contributors.
+Copyright &copy; 2023-25, [640KB](mailto:640kb@glabios.org) and contributors.
