@@ -42,9 +42,9 @@
 ;
 ;----------------------------------------------------------------------------;
 VER_NAME		EQU	'GLaTICK'
-VER_NUM		EQU	'0.8.6'		; (max 6 chars)
-VER_DATE		EQU	'08/18/23' 		; must be MM/DD/YY format
-COPY_YEAR		EQU	'2023'
+VER_NUM		EQU	'0.8.7'		; (max 6 chars)
+VER_DATE		EQU	'06/12/25' 		; must be MM/DD/YY format
+COPY_YEAR		EQU	'2023-25'
 
 ;----------------------------------------------------------------------------;
 ; Config

@@ -45,18 +45,16 @@ IS_GLABIOS	ENDP
 ;----------------------------------------------------------------------------;
 IRET_CF PROC NEAR
 	PUSH	BP
-	PUSH	AX
 
 ;----------------------------------------------------------------------------;
-; Same except BP and AX already on top of stack
+; Same except BP already on top of stack
 ;----------------------------------------------------------------------------;
 IRET_CF_1 PROC NEAR
-	MOV	BP, SP				; get stack frame
-	LAHF						; AH = current status flags
-	AND	AH, 1b				; isolate CF flag bit
-	AND	BYTE PTR [BP][8], NOT 1b	; clear CF bit in saved EFLAGS
-	OR	[BP][8], AH				; set current CF bit
-	POP	AX
+	MOV	BP, SP				; get stack pointer
+	PUSHF						; save current CF
+	SHR	BYTE PTR [BP][6], 1		; clear CF bit in INT flags
+	POPF						; restore current CF
+	RCL	BYTE PTR [BP][6], 1		; move CF to INT flags
 	POP	BP
 	IRET
 IRET_CF_1 ENDP

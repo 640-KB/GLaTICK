@@ -184,7 +184,8 @@ INT_1A_NS_2:
 INT_1A_NS_RET:
 	POP	DI
 	POP	BX
-	JMP	NEAR PTR IRET_CF_1		; IRET with current CF
+	POP	AX
+	JMP	NEAR PTR IRET_CF_1		; IRET with current CF (BP on stack)
 
 ;----------------------------------------------------------------------------;
 ; NS MM58167AN Jump Table
