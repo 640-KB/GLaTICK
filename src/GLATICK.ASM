@@ -530,9 +530,9 @@ ROM_INIT	ENDP					; end of option ROM init
 ; Input:
 ;	AL = RTC type
 ;	DX = port
-;	DI = new INT 1Ah
+;	CS:DI = new INT 1Ah
 ;
-; Clobbers: AX, DX
+; Clobbers: AX, DX, DI
 ;----------------------------------------------------------------------------;
 				ASSUME DS:_BDA
 SETUP_RTC PROC
@@ -566,12 +566,11 @@ SETUP_RTC PROC
 				ASSUME DS:_IVT
 	XOR	AX, AX
 	MOV	DS, AX				; DS = IVT
-	LES	AX, _INT_1AH			; ES:AX = current INT 1Ah
-	MOV	_INT_1AH_BIOS_OFF, AX		; Save previous BIOS INT 1A
-	MOV	_INT_1AH_BIOS_SEG, ES
-	MOV	_INT_1AH_OFF, DI			; Set up new INT 1Ah
-	MOV	_INT_1AH_SEG, CS
-
+	MOV	AX, CS
+	XCHG	_INT_1AH_SEG, AX			; Set up new INT 1Ah from CS:DI
+	XCHG	_INT_1AH_OFF, DI			; AX:DI = previous INT 1Ah
+	MOV	_INT_1AH_BIOS_SEG, AX		; Save BIOS INT 1Ah to INT 55h
+	MOV	_INT_1AH_BIOS_OFF, DI
 SETUP_RTC_EXIT:
 				ASSUME DS:_BDA
 	POPF						; restore IF
