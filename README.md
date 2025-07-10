@@ -20,6 +20,7 @@ GLaTICK eliminates the need for DOS-based RTC clock drivers/programs letting you
   - **MSM5832** used by Quadram, DTK PII-125
   - **MSM6242**	used by Intel Above Board and other MSM-6242 boards
   - **DS1216x/DS1315**	SmartWatch "No-Slot" ROM socket clocks
+  - **MSM/RTC-58321**	used by Boca IO/XT22
 
 ## Requirements
 
@@ -53,7 +54,6 @@ The included `OPT2ROM.COM` will convert the produced EXE file to a 2 KiB ROM fil
 ### Roadmap:
 
 - Support for additional RTCs including:
-  - MSM-58321
   - Dallas DS1644 Timekeeper
 
 ### Credits:
