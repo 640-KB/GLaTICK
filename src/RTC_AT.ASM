@@ -4,7 +4,7 @@
 ;----------------------------------------------------------------------------;
 ; GLaTICK (Generational Logic and Time Interval Cadence Keeper)
 ;----------------------------------------------------------------------------;
-; RTC Support for Standard AT CMOS (port 70H, 240H or 2C0H), MC146818, DS12x85
+; RTC Support for AT-type CMOS (port 70H, 240H or 2C0H), MC146818, DS12x85
 ;----------------------------------------------------------------------------;
 INCLUDE	RTC.INC
 
@@ -75,10 +75,15 @@ INCLUDE 	MACROS.INC
 			ASSUME  DS:OPTROM, SS:OPTROM, CS:OPTROM, ES:OPTROM
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 
-PUBLIC	AT_DETECT, INT_1A_AT
+PUBLIC	AT_DETECT, INT_1A_AT, STR_AT
 EXTRN		INT_1A_DEFAULT:NEAR, IRET_CF:NEAR, GET_RTC:NEAR
 
 RTC_AT_PROC PROC
+
+;----------------------------------------------------------------------------;
+; AT Display string
+;----------------------------------------------------------------------------;
+STR_AT	DB	'AT ', 0			; AT = DS1285/MC146818
 
 ;----------------------------------------------------------------------------;
 ; Supported I/O ports

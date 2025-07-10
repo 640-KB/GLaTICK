@@ -156,11 +156,16 @@ INCLUDE 	MACROS.INC
 ;----------------------------------------------------------------------------;
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 		ASSUME  DS:OPTROM, SS:OPTROM, CS:OPTROM, ES:OPTROM
-PUBLIC	SW_DETECT, INT_1A_SW
+PUBLIC	SW_DETECT, INT_1A_SW, STR_SW
 EXTRN		INT_1A_DEFAULT:NEAR, IRET_CF:NEAR, BYTE_TO_BCD:NEAR
 EXTRN		WORD_HEX:NEAR, GET_RTC:NEAR, BCD_TO_BYTE:NEAR
 
 RTC_SW_PROC PROC
+
+;----------------------------------------------------------------------------;
+; SmartWatch Display string
+;----------------------------------------------------------------------------;
+STR_SW	DB	'DS1216 ', 0		; SW = DS1216x
 
 ;----------------------------------------------------------------------------;
 ; INT 1A IVT for RTC_SW
@@ -807,7 +812,7 @@ DOW_1:
 	MOV	DX, DBW <31, 12>	; DH = 31, DL = 12
 	MUL	DH			; AX = AL * 31
 	DIV	DL			; AL = AX / 12
-	XOR	AH, AH		; zero extend AL
+	CBW				; zero extend AL
 	ADD	BX, AX		; add to running sum	
 
 ;----------------------------------------------------------------------------;
@@ -846,7 +851,7 @@ DOW_1:
 ;----------------------------------------------------------------------------;
 ; % 7
 ;
-	CWD				; zero extend to DX
+	CWD				; zero extend DX
 	MOV	BX, 7
 	DIV	BX			; DX = DX:AX % 7
 	XCHG	AX, DX		; AX = modulo

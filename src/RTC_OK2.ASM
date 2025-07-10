@@ -94,9 +94,14 @@ INCLUDE 	MACROS.INC
 			ASSUME  DS:OPTROM, SS:OPTROM, CS:OPTROM, ES:OPTROM
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 
-PUBLIC	OK2_DETECT
+PUBLIC	OK2_DETECT, STR_OK2
 EXTRN		INT_1A_DEFAULT:NEAR, IRET_CF:NEAR, GET_RTC:NEAR
 EXTRN		BCD_TO_WORD:NEAR, PACK_BCD:NEAR, UNPACK_BCD:NEAR
+
+;----------------------------------------------------------------------------;
+; OK2 Display string
+;----------------------------------------------------------------------------;
+STR_OK2	DB	'6242 ', 0			; OK2 = MSM6242
 
 ;----------------------------------------------------------------------------;
 ; Supported I/O ports 2C0, 240, 250, 300, 340, 350
@@ -118,6 +123,10 @@ INT_1A_OK2 PROC
 	JBE	INT_1A_OK2_1			; if not, use default call
 INT_1A_OK2_BIOS:
 	JMP	NEAR PTR INT_1A_DEFAULT		; near jump to BIOS handler
+
+;----------------------------------------------------------------------------;
+; Get base port from BDA - DI for all calls
+;
 INT_1A_OK2_1:
 	PUSH	BX
 	PUSH	DI

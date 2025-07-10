@@ -6,7 +6,7 @@
 ;
 ; A Real Time Clock Companion ROM.
 ;
-; Copyright (c) 2022-2023, 640KB and contributors
+; Copyright (c) 2022-2025, 640KB and contributors
 ;
 ;----------------------------------------------------------------------------;
 ;
@@ -42,8 +42,8 @@
 ;
 ;----------------------------------------------------------------------------;
 VER_NAME		EQU	'GLaTICK'
-VER_NUM		EQU	'0.8.7'		; (max 6 chars)
-VER_DATE		EQU	'06/12/25' 		; must be MM/DD/YY format
+VER_NUM		EQU	'0.8.8'		; (max 6 chars)
+VER_DATE		EQU	'07/07/25' 		; must be MM/DD/YY format
 COPY_YEAR		EQU	'2023-25'
 
 ;----------------------------------------------------------------------------;
@@ -89,7 +89,7 @@ INCLUDE 	SEGS.INC
 			ASSUME DS:OPTROM, SS:OPTROM, CS:OPTROM, ES:OPTROM
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 
-PUBLIC	INT_1A_DEFAULT, IS_LEAP, LEAP_NEXT, GET_RTC, STR_CRLF
+PUBLIC	INT_1A_DEFAULT, GET_RTC, STR_CRLF
 PUBLIC	PACK_BCD, UNPACK_BCD, BCD_TO_WORD, BCD_TO_BYTE, BYTE_TO_BCD
 
 EXTRN		OUT_CHAR:NEAR, OUT_SZ_ATTR:NEAR, OUT_SZ:NEAR, OUT_SZ_NL:NEAR
@@ -148,20 +148,20 @@ ROM_INIT	PROC
 ; Optionally display a GLaTICK banner
 ;
 	CALL	IS_GLABIOS				; is GLaBIOS?
-	JZ	DETECT_RTCS				; if so, don't display banner
+	JZ	BANNER_DONE				; if so, don't display banner
 	PRINTLN_SZ VER_BANNER			; otherwise display it
+BANNER_DONE:
+			ENDIF
 
 ;----------------------------------------------------------------------------;
 ; Detect Supported RTCs
 ;----------------------------------------------------------------------------;
-DETECT_RTCS:
-			ENDIF
 
 			IFDEF RTC_AT
 ;----------------------------------------------------------------------------;
 ; Check for AT port 70H, 240H, 2C0H: MC146818, DS12x85
 ;----------------------------------------------------------------------------;
-EXTRN		AT_DETECT:NEAR
+EXTRN		AT_DETECT:NEAR, STR_AT:NEAR
 DETECT_AT:
 	CALL	AT_DETECT			; DI = new IVT, AL = RTC type, DX = port
 	MOV	SI, OFFSET STR_AT		; 'AT' string
@@ -173,7 +173,7 @@ DETECT_AT:
 ; Check for NS MM58167AN: SixPakPlus V1, generic I/O boards
 ; AL = RTC_NS (direct) or RTC_NS2 (latched)
 ;----------------------------------------------------------------------------;
-EXTRN		NS_DETECT:NEAR
+EXTRN		NS_DETECT:NEAR, STR_NS:NEAR
 DETECT_NS:
 	CALL	NS_DETECT			; DI = new IVT, AL = RTC type, DX = port
 	MOV	SI, OFFSET STR_NS		; '58167' string
@@ -184,7 +184,7 @@ DETECT_NS:
 ;----------------------------------------------------------------------------;
 ; Check for RP5C15: SixPakPlus V2
 ;----------------------------------------------------------------------------;
-EXTRN		RP_DETECT:NEAR
+EXTRN		RP_DETECT:NEAR, STR_RP:NEAR
 DETECT_RP:
 	CALL	RP_DETECT			; DI = new IVT, AL = RTC type, DX = port
 	MOV	SI, OFFSET STR_RP		; 'RP5C15' string
@@ -195,7 +195,7 @@ DETECT_RP:
 ;----------------------------------------------------------------------------;
 ; Check for MSM6242: Above Board, others
 ;----------------------------------------------------------------------------;
-EXTRN		OK2_DETECT:NEAR
+EXTRN		OK2_DETECT:NEAR, STR_OK2:NEAR
 DETECT_OK2:
 	CALL	OK2_DETECT			; DI = new IVT, AL = RTC type, DX = port
 	MOV	SI, OFFSET STR_OK2	; '6242' string
@@ -206,7 +206,7 @@ DETECT_OK2:
 ;----------------------------------------------------------------------------;
 ; Check for MSM5832: Quadram, DTK PII-125
 ;----------------------------------------------------------------------------;
-EXTRN		OK_DETECT:NEAR
+EXTRN		OK_DETECT:NEAR, STR_OK:NEAR
 DETECT_OK:
 	CALL	OK_DETECT			; DI = new IVT, AL = RTC type, DX = port
 	MOV	SI, OFFSET STR_OK		; '5832' string
@@ -217,11 +217,21 @@ DETECT_OK:
 ;----------------------------------------------------------------------------;
 ; Check for DS-1216x "SmartWatch"
 ;----------------------------------------------------------------------------;
-EXTRN		SW_DETECT:NEAR
+EXTRN		SW_DETECT:NEAR, STR_SW:NEAR
 DETECT_SW:
 	CALL	SW_DETECT			; DI = new IVT, AL = RTC type, DX = port
 	MOV	SI, OFFSET STR_SW		; 'DS1216' string
 	JNC	DETECT_SET
+			ENDIF
+
+			IFDEF RTC_EP
+;----------------------------------------------------------------------------;
+; Check for RTC-58321
+;----------------------------------------------------------------------------;
+EXTRN		EP_DETECT:NEAR
+DETECT_SW:
+	CALL	EP_DETECT			; DI = new IVT, AL = RTC type, DX = port,
+	JNC	DETECT_SET			; SI = '58321' string, NC if detected
 			ENDIF
 
 ;----------------------------------------------------------------------------;
@@ -572,11 +582,11 @@ SETUP_RTC PROC
 	MOV	_INT_1AH_BIOS_SEG, AX		; Save BIOS INT 1Ah to INT 55h
 	MOV	_INT_1AH_BIOS_OFF, DI
 SETUP_RTC_EXIT:
-				ASSUME DS:_BDA
 	POPF						; restore IF
 	POP	CX
 	POP	DS
 	RET
+				ASSUME DS:_BDA
 SETUP_RTC ENDP
 
 ;----------------------------------------------------------------------------;
@@ -767,6 +777,7 @@ TTT_HIGH:
 TIME_TO_TICKS ENDP
 BCD_TIME_TO_TICKS ENDP
 
+		IF USE_LEAP EQ 1
 ;----------------------------------------------------------------------------;
 ; Is leap year in next 12 months?
 ;----------------------------------------------------------------------------;
@@ -774,6 +785,7 @@ BCD_TIME_TO_TICKS ENDP
 ; Output: ZF if leap, NZ if not leap
 ; Clobbers AX, BX
 ;----------------------------------------------------------------------------;
+PUBLIC LEAP_NEXT
 LEAP_NEXT PROC
 	CMP	CH, 3 			; is Mar - Dec?
 	JL	IS_LEAP 			; if so, check if NEXT year is a leap
@@ -787,6 +799,7 @@ LEAP_NEXT PROC
 ;	ZF if leap, NZ if not leap
 ;	AL = leap counter (0 = leap year, 1-3 = non-leap year)
 ;----------------------------------------------------------------------------;
+PUBLIC IS_LEAP
 IS_LEAP PROC
 	MOV	BL, 100			; divide by 100 to split year
 	DIV	BL				; AL = first two digits, AH = last two
@@ -800,7 +813,9 @@ LEAP_MOD4:
 
 IS_LEAP ENDP
 LEAP_NEXT ENDP
+		ENDIF
 
+		IF RESET_ON_ERROR EQ 1
 ;----------------------------------------------------------------------------;
 ; Validate BCD time: 00:00:00-23:59:59
 ;----------------------------------------------------------------------------;
@@ -879,6 +894,7 @@ VAL_DATE_RET_CMC:
 VAL_DATE_RET:
 	RET						; return with current CF
 VALIDATE_DATE ENDP
+		ENDIF
 
 ;----------------------------------------------------------------------------;
 ; Strings
@@ -900,29 +916,7 @@ STR_CRLF	DB	CR, LF, 0
 STR_RTC	DB	'RTC', 0
 STR_CLK	DB	'Clock', 0
 STR_ERR	DB	'Error', 0
-
-;----------------------------------------------------------------------------;
-; RTC type display
-;
 STR_NONE	DB	'None', 0
-			IFDEF RTC_AT
-STR_AT	DB	'AT ', 0			; AT = DS1285/MC146818
-			ENDIF
-			IFDEF RTC_OK
-STR_OK	DB	'5832 ', 0			; OK = MSM5832/1
-			ENDIF
-			IFDEF RTC_OK2
-STR_OK2	DB	'6242 ', 0			; OK2 = MSM6242
-			ENDIF
-			IFDEF RTC_RP			
-STR_RP	DB	'RP5C15 ', 0		; RP = RP5C15
-			ENDIF
-			IFDEF RTC_SW
-STR_SW	DB	'DS1216 ', 0		; SW = DS1216x
-			ENDIF
-			IFDEF RTC_NS
-STR_NS	DB	'58167 ', 0			; NS = MM58167AN
-			ENDIF
 
 ;----------------------------------------------------------------------------;
 ; END of ROM

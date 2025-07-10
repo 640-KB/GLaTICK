@@ -94,11 +94,16 @@ CS_CS_HIGH		=	C_CS + C_READ + C_WRITE + C_HOLD	; Set CS High
 			ASSUME  DS:OPTROM, SS:OPTROM, CS:OPTROM, ES:OPTROM
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 
-PUBLIC	OK_DETECT, INT_1A_OK
+PUBLIC	OK_DETECT, INT_1A_OK, STR_OK
 EXTRN		INT_1A_DEFAULT:NEAR, LEAP_NEXT:NEAR, PACK_BCD:NEAR, UNPACK_BCD:NEAR
 EXTRN		BCD_TO_WORD:NEAR, BCD_TO_BYTE:NEAR, GET_RTC:NEAR, IRET_CF:NEAR
 
 RTC_OK_PROC PROC
+
+;----------------------------------------------------------------------------;
+; OK Display string
+;----------------------------------------------------------------------------;
+STR_OK	DB	'5832 ', 0			; OK = MSM5832/1
 
 ;----------------------------------------------------------------------------;
 ; INT 1A IVT for OK MS5832 
@@ -111,6 +116,10 @@ INT_1A_OK PROC
 	JBE	INT_1A_OK_1				; if not, use default call
 INT_1A_OK_BIOS:
 	JMP	NEAR PTR INT_1A_DEFAULT		; near jump to BIOS handler
+
+;----------------------------------------------------------------------------;
+; Get base port from BDA - DI for all calls
+;
 INT_1A_OK_1:
 	PUSH	AX
 	PUSH	BX					; used as scratch register
@@ -349,7 +358,7 @@ OK_TRY_ADDR:
 	MOV	AL, 0A5H			; test with an "arbitrary" value
 	OUT	DX, AL			; write to Port B (RTC address)
 	IO_DELAY_SHORT
-	ISA_CLEAR				; flush ISA bus will all 1s
+	ISA_CLEAR				; fill ISA bus will all 1s
 	IN	AL, DX			; read back to AL
 	SUB	AL, 0A5H			; still the same?
 	JE	CARD_FOUND			; if so, is
@@ -397,17 +406,13 @@ OK_DETECT ENDP
 ; Clobbers: BL
 ;----------------------------------------------------------------------------;
 OK_MODE_READ PROC
+	PUSH	AX
 	PUSH	DX
-	XCHG	AX, BX			; save AX
 	LEA	DX, PORT_CW[DI]		; DX = Port Control Word
 	MOV	AL, PPI_CTRL_IN		; PPI READ mode
 	OUT	DX, AL			; set Port CW to READ (Control Word #8)
-	DEC	DX				; DX = Port C (RTC control)
 	MOV	AL, CS_READ_HIGH		; RTC READ mode (CS+READ+HOLD)
-	OUT	DX, AL			; send to PPI
-	XCHG	AX, BX			; restore AX
-	POP	DX
-	RET
+	JMP	SHORT OK_MODE_OUT		; I/O delay and write with delay
 OK_MODE_READ ENDP
 
 ;----------------------------------------------------------------------------;
@@ -419,9 +424,12 @@ OK_MODE_WRITE PROC
 	LEA	DX, PORT_CW[DI]		; DX = Port Control Word
 	MOV	AL, PPI_CTRL_OUT		; PPI direction WRITE mode
 	OUT	DX, AL			; set Port CW to WRITE (Control Word #8)
-	DEC	DX				; DX = Port C (RTC control)
+	IO_DELAY_SHORT
 	MOV	AL, CS_HOLD_HIGH		; hold RTC clock high for access
+OK_MODE_OUT:
+	DEC	DX				; DX = Port C (RTC control)
 	OUT	DX, AL			; send to PPI
+	CALL	WRITE_DELAY			; hold for RTC settling time
 	POP	DX
 	POP	AX
 	RET
@@ -465,9 +473,11 @@ OK_READ_BYTE ENDP
 OK_READ PROC
 	LEA	DX, PORT_B[DI]		; DX = Port B (RTC address)
 	OUT	DX, AL			; AL = register index
-	CALL	READ_DELAY			; access time delay
+	CALL	READ_DELAY			; PPI access time delay
 	MOV	BL, AL			; BL = register index
 	DEC	DX				; DX = Port A (RTC data)
+	IO_DELAY_SHORT
+	ISA_CLEAR				; fill ISA bus will all 1s
 	IN	AL, DX			; AL = counter byte
 	CMP	BL, OK_REG_H10		; is 10-digit hour of day?
 	JE	OK_READ_REG_H10		; jump to handle 12/24 hour mode

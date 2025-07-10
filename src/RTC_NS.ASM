@@ -129,11 +129,16 @@ INCLUDE	SEGS.INC
 ;----------------------------------------------------------------------------;
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 		ASSUME  DS:OPTROM, SS:OPTROM, CS:OPTROM, ES:OPTROM
-PUBLIC	NS_DETECT
+PUBLIC	NS_DETECT, STR_NS
 EXTRN		INT_1A_DEFAULT:NEAR, PACK_BCD:NEAR, IRET_CF:NEAR, IRET_CF_1:NEAR
 EXTRN		GET_RTC:NEAR, BCD_TO_BYTE:NEAR, BYTE_TO_BCD:NEAR
 
 RTC_NS_PROC PROC
+
+;----------------------------------------------------------------------------;
+; NS Display string
+;----------------------------------------------------------------------------;
+STR_NS	DB	'58167 ', 0			; NS = MM58167AN
 
 ;----------------------------------------------------------------------------;
 ; Supported I/O ports

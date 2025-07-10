@@ -12,7 +12,7 @@
 ;
 ; Recommented/Tested groupings:
 ; - RTC_RP, RTC_NS, RTC_NS2
-; - RTC_OK, RTC_OK2
+; - RTC_OK, RTC_OK2, RTC_EP
 ; - RTC_AT
 ; - RTC_SW
 ;----------------------------------------------------------------------------;
@@ -26,8 +26,8 @@ RTC_AT		EQU	1			; 1  AT  - DS12x85/MC146818
 
 ;RTC_OK		EQU	3			; 3  OK  - MSM5832
 ;RTC_OK2		EQU	5			; 5  OK2 - MSM6242
+;RTC_EP		EQU	4			; 4  EP  - RTC-58321
 
-;RTC_OK1		EQU	4			; 4  OK1 - MSM58321 (in progress)
 ;RTC_SW		EQU	8			; 8  SW  - DS1216x/DS1315 SmartWatch
 
 ;----------------------------------------------------------------------------;
@@ -55,6 +55,11 @@ RESET_ON_ERROR	=	1			; reset date if error on POST
 POST_ALT_STACK	=	0			; use BIOS stack during POST
 
 ;----------------------------------------------------------------------------;
+; Optional routines (can be removed to save code space)
+;
+USE_LEAP		=	0			; Do not include LEAP by deafult
+
+;----------------------------------------------------------------------------;
 ; Per-clock configuration below
 ;
 			IFDEF RTC_SW
@@ -62,4 +67,13 @@ POST_ALT_STACK	=	1			; use alternate stack during POST
 							;  due to large amount of stack
 							;  space required
 RESET_ON_ERROR	=	1			; reset date if error on POST
+USE_LEAP		=	1
+			ENDIF
+
+			IFDEF RTC_RP
+USE_LEAP		=	1
+			ENDIF
+
+			IFDEF RTC_OK
+USE_LEAP		=	1
 			ENDIF

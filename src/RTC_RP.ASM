@@ -102,9 +102,14 @@ INCLUDE 	MACROS.INC
 			ASSUME  DS:OPTROM, SS:OPTROM, CS:OPTROM, ES:OPTROM
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 
-PUBLIC	RP_DETECT
+PUBLIC	RP_DETECT, STR_RP
 EXTRN		INT_1A_DEFAULT:NEAR, IRET_CF:NEAR, IS_LEAP:NEAR
 EXTRN		PACK_BCD:NEAR, UNPACK_BCD:NEAR, BCD_TO_WORD:NEAR
+
+;----------------------------------------------------------------------------;
+; RP Display string
+;----------------------------------------------------------------------------;
+STR_RP	DB	'RP5C15 ', 0		; RP = RP5C15
 
 ;----------------------------------------------------------------------------;
 ; INT 1A IVT for RP RP5C15 
