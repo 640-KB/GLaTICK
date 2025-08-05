@@ -57,7 +57,8 @@ POST_ALT_STACK	=	0			; use BIOS stack during POST
 ;----------------------------------------------------------------------------;
 ; Optional routines (can be removed to save code space)
 ;
-USE_LEAP		=	0			; Do not include LEAP by deafult
+USE_LEAP		=	0			; Do not include LEAP by default
+SET_DOW		=	0			; calculate/set day of week if needed
 
 ;----------------------------------------------------------------------------;
 ; Per-clock configuration below
@@ -68,10 +69,20 @@ POST_ALT_STACK	=	1			; use alternate stack during POST
 							;  space required
 RESET_ON_ERROR	=	1			; reset date if error on POST
 USE_LEAP		=	1
+SET_DOW		=	1			; calculate and set day of week
+			ENDIF
+
+			IFDEF RTC_NS
+SET_DOW		=	1			; calculate and set day of week
+			ENDIF
+
+			IFDEF RTC_AT
+SET_DOW		=	1			; calculate and set day of week
 			ENDIF
 
 			IFDEF RTC_RP
 USE_LEAP		=	1
+SET_DOW		=	1			; calculate and set day of week
 			ENDIF
 
 			IFDEF RTC_OK

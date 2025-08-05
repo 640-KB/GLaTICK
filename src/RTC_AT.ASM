@@ -303,6 +303,14 @@ AT_INT_1A_5 PROC
 	JNZ	AT_INT_1A_4_RET			; exit if timeout
 	CLI
 	CALL	AT_HOLD				; hold clock and clear flags
+			IF SET_DOW EQ 1
+			EXTRN	DOW:NEAR
+	CALL	DOW					; AL = zero-based day of week
+	INC	AX					; adjust for one-based day (1-7)
+	MOV	AH, AL
+	MOV	AL, AT_REG_WEEKDAY		; RTC day of week (6)
+	CALL	AT_WRITE
+			ENDIF
 	MOV	AL, AT_REG_DAY			; RTC day (7)
 	MOV	AH, DL				; AH = new day
 	CALL	AT_WRITE

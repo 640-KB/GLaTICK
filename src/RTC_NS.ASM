@@ -434,6 +434,14 @@ NS_CHECK_ROLLOVER ENDP
 ; Clobbers: AX, BX
 ;----------------------------------------------------------------------------;
 NS_INT_1A_5 PROC
+			IF SET_DOW EQ 1
+			EXTRN	DOW:NEAR
+	CALL	DOW				; AL = zero-based day of week
+	INC	AX				; adjust for one-based day
+	MOV	AH, AL
+	MOV	AL, NS_DOW			; day of week
+	CALL	NS_WRITE			; write dow: AL = register, AH = value
+			ENDIF
 	MOV	AX, CX			; AL = year in BCD
 			IF Y2K_OFFSET EQ 1
 	ADD	AL, 20H			; store years + 20

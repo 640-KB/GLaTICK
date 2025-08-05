@@ -14,7 +14,6 @@ INCLUDE	RTC.INC
 
 			IFDEF RTC_SW
 SHOW_CLOCK		=	1			; enable display of clock on boot
-SET_DOW		=	1			; calculate and set day of week
 Y2K_OFFSET		=	0			; do not offset year
 
 ;----------------------------------------------------------------------------;
@@ -435,6 +434,7 @@ SW_INT_1A_4 ENDP
 ;----------------------------------------------------------------------------;
 SW_INT_1A_5 PROC
 			IF SET_DOW EQ 1
+			EXTRN	DOW:NEAR
 	CALL	DOW						; AL = zero-based day of week
 	INC	AX						; adjust for one-based day
 	OR	AL, MASK RST				; set /RESET bit
@@ -754,114 +754,6 @@ CALL_F_SP PROC
 			ASSUME DS:NOTHING
 	RET
 CALL_F_SP ENDP
-
-			IF SET_DOW EQ 1
-;----------------------------------------------------------------------------;
-; Get Day of week
-;----------------------------------------------------------------------------;
-; Input:
-;	CH = century in BCD	(J)
-;	CL = year in BCD		(K)
-;	DH = month in BCD		(m)
-;	DL = day in BCD		(q)
-; Output:
-;	AX = day of week (0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat)
-;
-; Source: https://en.wikipedia.org/wiki/Zeller%27s_congruence
-;----------------------------------------------------------------------------;
-DOW PROC
-	PUSH	BX
-	PUSH	CX
-	PUSH	DX
-
-;----------------------------------------------------------------------------;
-; h = q
-;
-	MOV	AL, DL		; q day
-	CALL	BCD_TO_BYTE		; AX = q (byte)
-	XCHG	AX, BX		; save to running sum in BX
-
-	MOV	AL, DH		; m month
-	CALL	BCD_TO_BYTE		; AX = m (byte)
-
-;----------------------------------------------------------------------------;
-; if Jan/Feb, adjust backwards to previous year
-; (3 = March, 4 = April, 5 = May, ..., 14 = February)
-;
-	SUB	AL, 2			; compare and perform (m-2) operation below
-					;  (1 = Mar, ..., 10 = Dec)
-	JA	DOW_1			; jump if Mar-Dec
-	ADD	AL, 12		; 11 = Jan, 12 = Feb
-
-;----------------------------------------------------------------------------;
-; if Jan or Feb, decrement year (in BCD)
-;
-	XCHG	AX, CX		; AX = year (BCD)
-	SUB	AL, 1			; decrement low digits
-	DAS				; adjust for BCD
-	XCHG	AH, AL		; swap high byte for DAS
-	SBB	AL, 0			; if borrow, decrement high digits
-	DAS				; adjust for BCD
-	XCHG	AH, AL		; swap back
-	XCHG	AX, CX		; CX = decremented year (BCD)
-
-;----------------------------------------------------------------------------;
-; + 31(m-2)/12
-;
-DOW_1:
-	MOV	DX, DBW <31, 12>	; DH = 31, DL = 12
-	MUL	DH			; AX = AL * 31
-	DIV	DL			; AL = AX / 12
-	CBW				; zero extend AL
-	ADD	BX, AX		; add to running sum	
-
-;----------------------------------------------------------------------------;
-; + K
-;
-	MOV	AL, CL		; K year
-	CALL	BCD_TO_BYTE
-	ADD	BX, AX		; add to running sum
-
-;----------------------------------------------------------------------------;
-; + K/4
-;
-	SHR	AX, 1			; K / 4
-	SHR	AX, 1
-	ADD	BX, AX		; add to running sum
-
-;----------------------------------------------------------------------------;
-; + J/4
-;
-	MOV	AL, CH		; J century
-	CALL	BCD_TO_BYTE
-	MOV	CX, AX		; save byte century
-	SHR	AX, 1			; J / 4
-	SHR	AX, 1
-	ADD	BX, AX		; add to running sum
-	XCHG	AX, CX		; restore byte century
-
-;----------------------------------------------------------------------------;
-; + 5*J
-;
-	ADD	BX, AX		; 1 * J
-	SHL	AX, 1			; 2 * J
-	SHL	AX, 1			; 2 * J
-	ADD	AX, BX		; AX = final sum
-
-;----------------------------------------------------------------------------;
-; % 7
-;
-	CWD				; zero extend DX
-	MOV	BX, 7
-	DIV	BX			; DX = DX:AX % 7
-	XCHG	AX, DX		; AX = modulo
-
-	POP	DX
-	POP	CX
-	POP	BX
-	RET
-DOW ENDP
-			ENDIF
 
 RTC_SW_PROC ENDP
 

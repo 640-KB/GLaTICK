@@ -67,7 +67,7 @@ RP_MIN		RECORD	MINX:1, MIN10:3, MIN01:4
 RP_HR			RECORD	HRX:1,  HR10:2,  HR01:4
 RP_DATE		RECORD	DTX1:2, DT10:2,  DT01:4
 RP_MON		RECORD	MNX1:3, MON10:1, MON01:4
-RP_DOW		RECORD	DWX:5,  DOW:3
+RP_DOW		RECORD	DWX:5,  DOWD:3
 
 ;----------------------------------------------------------------------------;
 ; RP_MODE: MODE register (0Dh)
@@ -289,6 +289,14 @@ RP_INT_1A_4 ENDP
 RP_INT_1A_5 PROC
 	PUSHF					; save IF
 	CALL	RP_RESET			; prepare for write operation, IF=0
+			IF SET_DOW EQ 1
+			EXTRN	DOW:NEAR
+	CALL	DOW				; AL = zero-based day of week
+	INC	AX				; adjust for one-based day
+	MOV	AH, AL
+	MOV	AL, R0_WEEK			; day of week
+	CALL	RP_WRITE_BCD
+			ENDIF
 	PUSH	CX				; save original year
 			IF Y2K_OFFSET EQ 1
 	XCHG	AX, CX
