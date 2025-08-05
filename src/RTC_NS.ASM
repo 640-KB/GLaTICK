@@ -84,7 +84,8 @@ RTC_NS_TYPE		=	RTC_NS_STD		; set for standard
 ;
 RTC_DRV_TYPE	=	RTC_DRV_STD		; set for standard (year as byte)
 ;RTC_DRV_TYPE	=	RTC_DRV_OLD		; set for <= 0.8.3 behavior
-;RTC_DRV_TYPE	=	RTC_DRV_86B		; set for 86Box (AST, 5PAK or EV-170)
+;RTC_DRV_TYPE	=	RTC_DRV_86B		; set for 86Box (Generic 58167, AST
+;							;  5PAK or EV-170)
 ;RTC_DRV_TYPE	=	RTC_DRV_86B2	; set for 86Box (PII-147)
 
 ;----------------------------------------------------------------------------;
@@ -401,7 +402,7 @@ NS_INT_1A_4_RETRY:			; read failed, retry
 	STI					; allow any pending interrupts
 	DEC	SI				; decrement retry counter
 	JNZ	NS_INT_1A_4_LOOP		; loop up to READ_RETRY times
-	JMP	SHORT NS_INT_1A_READ_ERR	; rollover bit not cleared
+	JMP	NS_INT_1A_READ_ERR	; rollover bit not cleared
 NS_INT_1A_4 ENDP
 
 ;----------------------------------------------------------------------------;
@@ -691,11 +692,7 @@ NS_DETECT_PORT PROC
 	XCHG	AX, DX			; AL = test read
 	TEST	AL, 0FH			; is low nibble 0?
 	JZ	NS_DETECT_PORT_ND		; if so, not detected
-			IF RTC_DRV_TYPE EQ RTC_DRV_86B OR RTC_DRV_TYPE EQ RTC_DRV_86B2
-	CMP	AL, NS_TEST			; if 0AAh, then likely NS (workaround 86Box bug)
-			ELSE
 	CMP	AL, NS_TEST AND 0FH	; if 0Ah, then likely NS
-			ENDIF
 	JNZ	NS_DETECT_PORT_ND		; jump if not
 
 ;----------------------------------------------------------------------------;
