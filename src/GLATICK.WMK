@@ -1,0 +1,44 @@
+#
+# Watcom wmake makefile for GLaTICK
+#
+PROG = GLATICK
+
+# Use explicit uppercase for for case-sensitive OS filesystems
+.EXTENSIONS:
+.EXTENSIONS: .OBJ .ASM
+
+# JWasm, Wlink and Python paths
+AS		= jwasm
+LD		= wlink
+PY		= python
+B2R 	= $(PY) OPT2ROM/wbin2rom.py -s 2048
+
+# Project settings
+TARGET  = $(PROG).BIN
+ROM		= $(PROG).ROM
+OBJS    = $(PROG).OBJ GLALIB.OBJ RTC_NS.OBJ RTC_OK.OBJ RTC_OK2.OBJ &
+	RTC_AT.OBJ RTC_RP.OBJ RTC_SW.OBJ RTC_EP.OBJ
+
+# Note: dependencies do not appear to work with implicit rules
+DEPS	= RTC.INC MACROS.INC SEGS.INC GLATICK.NMK
+
+# Assembler / Linker run time options
+AFLAGS	= -Fl -Zm
+LFLAGS	= disable 1014 disable 1023
+
+# Default rule
+all: $(TARGET) .symbolic
+
+# Assemble each ASM file into OBJ
+.ASM.OBJ:
+	$(AS) $(AFLAGS) -Fo=$^@ $[*.ASM
+
+# Link OBJs into flat binary and add checksum byte
+$(TARGET): $(OBJS)
+    $(LD) name $(TARGET) $(LFLAGS) format raw bin file { $(OBJS) }
+    $(B2R) $(TARGET) $(ROM)
+
+# Clean up
+clean: .symbolic
+    del *.OBJ
+    del $(TARGET)
