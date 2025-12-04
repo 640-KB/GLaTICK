@@ -40,5 +40,5 @@ $(TARGET): $(OBJS)
 
 # Clean up
 clean: .symbolic
-    del *.OBJ
-    del $(TARGET)
+    rm *.OBJ
+    rm $(TARGET)
