@@ -45,11 +45,21 @@ GLaTICK eliminates the need for DOS-based RTC clock drivers/programs letting you
 
 ### Build:
 
-Using MASM 5: `MAKE GLATICK.MAK`.  
+#### Using MASM:
 
-Using MASM 6: `NMAKE GLATICK.NMK`.
+MASM 5: `MAKE GLATICK.MAK`.  
+
+MASM 6: `NMAKE GLATICK.NMK`.
 
 The included `OPT2ROM.COM` will convert the produced EXE file to a 2 KiB ROM file.
+
+#### Using JWasm / Open Watcom:
+
+Build and install [JWasm 2.20 or newer](https://github.com/Baron-von-Riedesel/JWasm) and [Open Watcom `wlink` and `wmake`](https://github.com/open-watcom/open-watcom-v2).
+
+`wmake -f GLATICK.WMK`
+
+Requires Python to convert wlink output to 2 KiB ROM file.
 
 ### Roadmap:
 
