@@ -19,12 +19,12 @@ ROM		= $(PROG).ROM
 OBJS    = $(PROG).OBJ GLALIB.OBJ RTC_NS.OBJ RTC_OK.OBJ RTC_OK2.OBJ &
 	RTC_AT.OBJ RTC_RP.OBJ RTC_SW.OBJ RTC_EP.OBJ
 
-# Note: dependencies do not appear to work with implicit rules
-DEPS	= RTC.INC MACROS.INC SEGS.INC GLATICK.NMK
+# Dependent files that force rebuild of all objects
+DEPS	= RTC.INC MACROS.INC SEGS.INC GLALIB.INC $(__MAKEFILES__)
 
 # Assembler / Linker run time options
-AFLAGS	= -Fl -Zm
-LFLAGS	= disable 1014 disable 1023
+AFLAGS	= -Fl -Zm -q
+LFLAGS	= option quiet disable 1014 disable 1023
 
 # Default rule
 all: $(TARGET) .symbolic
@@ -32,6 +32,17 @@ all: $(TARGET) .symbolic
 # Assemble each ASM file into OBJ
 .ASM.OBJ:
 	$(AS) $(AFLAGS) -Fo=$^@ $[*.ASM
+
+# Explicit rules for dependencies
+GLATICK.OBJ: GLATICK.ASM $(DEPS)
+GLALIB.OBJ: GLALIB.ASM $(DEPS)
+RTC_NS.OBJ: RTC_NS.ASM $(DEPS)
+RTC_OK.OBJ: RTC_OK.ASM $(DEPS)
+RTC_OK2.OBJ: RTC_OK2.ASM $(DEPS)
+RTC_AT.OBJ: RTC_AT.ASM $(DEPS)
+RTC_RP.OBJ: RTC_RP.ASM $(DEPS)
+RTC_SW.OBJ: RTC_SW.ASM $(DEPS)
+RTC_EP.OBJ: RTC_EP.ASM $(DEPS)
 
 # Link OBJs into flat binary and add checksum byte
 $(TARGET): $(OBJS)
