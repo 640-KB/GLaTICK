@@ -14,11 +14,6 @@ DBW		RECORD	HWB:8, LWB:8
 ;----------------------------------------------------------------------------;
 ; Unpack packed BCD nibbles in AL into AH/AL (unpacked BCD)
 ;----------------------------------------------------------------------------;
-SAFE_V20	EQU	1		; don't use AAM/AAD imm instructions to split
-					; nibbles in case some CPUs/emulators do not
-					; implement this
-CPU_V20	EQU	0		; Use V20 nibble instructions instead
-					; NOTE: this will NOT work on non-V20/V30 CPUs!
 UNPACK_NIB	MACRO
 			IF SAFE_V20 EQ 1 AND CPU_V20 NE 1
 	MOV	AH, AL		; AH = packed input

@@ -60,9 +60,17 @@ POST_ALT_STACK	=	0			; use BIOS stack during POST
 USE_LEAP		=	0			; Do not include LEAP by default
 SET_DOW		=	0			; calculate/set day of week if needed
 
+;----------------------------------------------------------------------------;
+; Advanced Options (may void your warranty)
+;
 INT_1A_CF		=	0			; return CF from original BIOS INT 1AH
 							; only necessary if using extended
 							; system BIOS INT 1AH calls (AH=6, etc)
+SAFE_V20		=	1			; don't use AAM/AAD imm instructions to split
+							; nibbles in case some CPUs/emulators do not
+							; implement this
+CPU_V20		=	0			; Use only V20 nibble instructions
+							; NOTE: this will NOT work on non-V20/V30 CPUs!
 
 ;----------------------------------------------------------------------------;
 ; Per-clock configuration below
