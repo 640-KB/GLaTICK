@@ -10,6 +10,14 @@ INCLUDE	RTC.INC
 
 			IFDEF RTC_AT
 ;----------------------------------------------------------------------------;
+; Config AT I/O ports definition
+;----------------------------------------------------------------------------;
+AT_IO_PORTS		EQU	< 70H, 240H, 2C0H >	; standard ports
+;AT_IO_PORTS	EQU	< 240H, 2C0H >		; standard ports (XTs)
+;AT_IO_PORTS	EQU	< 2A0H >			; less-standard ports
+;AT_IO_PORTS	EQU	< 340H >
+
+;----------------------------------------------------------------------------;
 ; CMOS Clock Registers
 ; https://stanislavs.org/helppc/cmos_ram.html
 ;
@@ -88,9 +96,7 @@ STR_AT	DB	'AT ', 0			; AT = DS1285/MC146818
 ;----------------------------------------------------------------------------;
 ; Supported I/O ports
 ;----------------------------------------------------------------------------;
-AT_PORTS	DW	70H, 240H, 2C0H		; standard ports
-;		DW	2A0H				; less-standard ports
-;		DW	340H
+AT_PORTS	DW	AT_IO_PORTS
 AT_PORTS_CT	EQU	($-AT_PORTS)/2		; number of supported ports
 
 ;----------------------------------------------------------------------------;

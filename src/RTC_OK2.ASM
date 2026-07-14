@@ -47,7 +47,7 @@ OK2_MIN		RECORD	MINX:1, MIN10:3, MIN01:4
 OK2_HR		RECORD	HRX:1,  HRAP:1,  HR10:2, HR01:4
 OK2_DATE		RECORD	DTX1:2, DT10:2,  DT01:4
 OK2_MON		RECORD	MNX1:3, MON10:1, MON01:4
-OK2_DOW		RECORD	DWX:5,  DOW:3
+OK2_DOW		RECORD	DWX:5,  DOWD:3
 
 ;----------------------------------------------------------------------------;
 ; OK2_CRD: Control Register D (0Dh)

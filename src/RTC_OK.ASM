@@ -46,7 +46,7 @@ OK_REG_MI10		EQU	0011B		; 3 : M10 - 10's minutes (0-5)
 OK_REG_H1		EQU	0100B		; 4 : H1 - 1's hours (0-9)
 OK_REG_H10		EQU	0101B		; 5 : H10 - 10's hours (0-1/0-2)
 OK_REG_AP24		EQU	OK_REG_H10	;	D2 - AM/PM (0/1), 
-						;	D3 - 12/24 (0/1) hour format 
+						;	D3 - 12/24 (0/1) hour format
 OK_REG_W		EQU	0110B		; 6 : W - weekday (0-6)
 OK_REG_D1		EQU	0111B		; 7 : D1 - date 1's (0-9)
 OK_REG_D10		EQU	1000B		; 8 : D10 - date 10's (0-3)

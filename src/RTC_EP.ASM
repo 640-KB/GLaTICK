@@ -29,6 +29,7 @@ MULTI_READ		EQU	1			; use multiple reads instead of BUSY
 ; I/O Ports
 ;
 ADDR_PORT		EQU	02C0H			; Address/Register port (only 2C0H)
+							; Alt: 27E, 37E, 02A2-02A3
 
 ;----------------------------------------------------------------------------;
 ; Driver Software compatibility: Uncomment to select
