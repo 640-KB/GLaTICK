@@ -36,6 +36,7 @@
 ; - INT 1Ah services 6h and 7h (where supported)
 ; - Clean up include/config file structure
 ; - Command line build process
+; - Option for 21st century dates only (2000-2099 vs. 1980-2079)
 ;
 ; https://bochs.sourceforge.io/techspec/PORTS.LST
 ;
@@ -92,7 +93,7 @@ PUBLIC	INT_1A_DEFAULT, GET_RTC, STR_CRLF
 PUBLIC	PACK_BCD, UNPACK_BCD, BCD_TO_WORD, BCD_TO_BYTE, BYTE_TO_BCD
 
 EXTRN		OUT_CHAR:NEAR, OUT_SZ_ATTR:NEAR, OUT_SZ:NEAR, OUT_SZ_NL:NEAR
-EXTRN		WORD_HEX:NEAR, BYTE_HEX:NEAR
+EXTRN		WORD_HEX:NEAR, BYTE_HEX:NEAR, IRET_CF:NEAR
 EXTRN		POST_START_COL_1:NEAR, POST_START_COL_2:NEAR
 EXTRN		POST_END_COL:NEAR, POST_END_COL_NL:NEAR, IS_GLABIOS:NEAR
 
@@ -614,7 +615,11 @@ GET_RTC ENDP
 ;----------------------------------------------------------------------------;
 INT_1A_DEFAULT PROC NEAR
 	INT	INT_1A_BIOS				; use BIOS function instead
+			IF INT_1A_CF EQ 1
+	JMP	NEAR PTR IRET_CF			; IRET with CF from BIOS INT 1Ah
+			ELSE
 	IRET						; clobber BIOS INT 1Ah flags and IRET
+			ENDIF
 INT_1A_DEFAULT ENDP
 
 ;----------------------------------------------------------------------------;

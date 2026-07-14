@@ -60,6 +60,10 @@ POST_ALT_STACK	=	0			; use BIOS stack during POST
 USE_LEAP		=	0			; Do not include LEAP by default
 SET_DOW		=	0			; calculate/set day of week if needed
 
+INT_1A_CF		=	0			; return CF from original BIOS INT 1AH
+							; only necessary if using extended
+							; system BIOS INT 1AH calls (AH=6, etc)
+
 ;----------------------------------------------------------------------------;
 ; Per-clock configuration below
 ;
