@@ -24,7 +24,7 @@ DEPS	= RTC.INC MACROS.INC SEGS.INC GLALIB.INC $(__MAKEFILES__)
 
 # Assembler / Linker run time options
 AFLAGS	= -Fl -Zm -q
-LFLAGS	= option quiet disable 1014 disable 1023
+LFLAGS	= option quiet disable 1014 disable 1023 option Map
 
 # Default rule
 all: $(TARGET) .symbolic
