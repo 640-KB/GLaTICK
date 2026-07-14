@@ -4,7 +4,7 @@
 ;----------------------------------------------------------------------------;
 ; GLaTICK (Generational Logic and Time Interval Cadence Keeper)
 ;----------------------------------------------------------------------------;
-; RTC Support for RP RP5C15: SixPakPlus V2
+; RTC Support for RP RP5C15: SixPakPlus V2, Hyundai Super-16TE
 ;----------------------------------------------------------------------------;
 ; TODO:
 ; - INT 1Ah Alarm/interrupts
@@ -13,15 +13,33 @@ INCLUDE	RTC.INC
 
 			IFDEF RTC_RP
 ;----------------------------------------------------------------------------;
+; Hardware variants
+;
+RTC_RP_AST		EQU	1			; SixPakPlus V2
+RTC_RP_HY		EQU	2			; Hyundai Super-16TE
+
+;----------------------------------------------------------------------------;
 ; Config
 ;----------------------------------------------------------------------------;
 Y2K_OFFSET		=	1			; Store year as YY+20
 
 ;----------------------------------------------------------------------------;
+; Hardware type: Uncomment to select
+;
+RTC_RP_TYPE		=	RTC_RP_AST		; set for SixPakPlus
+;RTC_RP_TYPE		=	RTC_RP_HY		; set for Hyundai Super-16TE
+
+;----------------------------------------------------------------------------;
 ; I/O Ports
 ;
+				IF RTC_RP_TYPE EQ RTC_RP_HY
+ADDR_PORT		EQU	0E0H			; Base port (direct mapped)
+ADDR_MODE_DIR	EQU	1			; Direct address mode
+				ELSE
 ADDR_PORT		EQU	02C0H			; Address/Register port (only 2C0H)
 DATA_PORT		EQU	ADDR_PORT+1		; Data Port
+ADDR_MODE_DIR	EQU	0			; Latched address mode
+				ENDIF
 
 ;----------------------------------------------------------------------------;
 ; RP5C15 Registers Indexes
@@ -82,7 +100,19 @@ RP_DOW		RECORD	DWX:5,  DOWD:3
 RP_MODE		RECORD	MOX:4, TEN:1, AEN:1, MOZ:1, BNK:1
 
 ;----------------------------------------------------------------------------;
-; RP_RESET: RESET controller (0Fh)
+; RP_TST: TEST register (0Eh)
+;----------------------------------------------------------------------------;
+; 76543210
+; 0000		- RTX:	unused (always 0)
+;     x 		- RT3:	Test 3
+;      x		- RT2: 	Test 2
+;       x 		- RT1:	Test 1
+;        x		- RT0: 	Test 0
+;----------------------------------------------------------------------------;
+RP_TST		RECORD	RTX:4, RT3:1, RT2:1, RT1:1, RT0:1
+
+;----------------------------------------------------------------------------;
+; RP_RST: RESET controller (0Fh)
 ;----------------------------------------------------------------------------;
 ; 76543210
 ; 0000		- RSX:	unused (always 0)
@@ -91,7 +121,16 @@ RP_MODE		RECORD	MOX:4, TEN:1, AEN:1, MOZ:1, BNK:1
 ;       x 		- TRS:	Timer Reset
 ;        x		- ARS: 	Alarm Reset
 ;----------------------------------------------------------------------------;
-RP_RST		RECORD	RSX:4, R1K:1, R16K:1, TRS:1, ARS:1
+RP_RST		RECORD	RSX:4, R1K:1, R16K:1, TRS:1=1, ARS:1
+
+;----------------------------------------------------------------------------;
+; RP_24: 12/24 select register (0Ah) (Bank 1)
+;----------------------------------------------------------------------------;
+; 76543210
+; 0000000		- R12X:	unused (always 0)
+;        x		- R24: 	clock format: 1=24 hour (default), 0=12 hour
+;----------------------------------------------------------------------------;
+RP_24			RECORD	R12:7, R24:1=1
 
 INCLUDE	GLALIB.INC
 INCLUDE 	MACROS.INC
@@ -103,7 +142,7 @@ INCLUDE 	MACROS.INC
 OPTROM	SEGMENT BYTE PUBLIC 'CODE'
 
 PUBLIC	RP_DETECT, STR_RP
-EXTRN		INT_1A_DEFAULT:NEAR, IRET_CF:NEAR, IS_LEAP:NEAR
+EXTRN		INT_1A_DEFAULT:NEAR, IRET_CF:NEAR
 EXTRN		PACK_BCD:NEAR, UNPACK_BCD:NEAR, BCD_TO_WORD:NEAR
 
 ;----------------------------------------------------------------------------;
@@ -203,7 +242,7 @@ RP_INT_1A_2 ENDP
 ;	   = 0 if standard time
 ;----------------------------------------------------------------------------;
 RP_INT_1A_3 PROC
-	PUSHF					; save IF
+	;PUSHF					; save IF
 	CALL	RP_RESET			; prepare for writing, IF=0
 	MOV	AL, R0_1HOUR		; 
 	MOV	AH, CH			; Hours
@@ -217,7 +256,8 @@ RP_INT_1A_3 PROC
 	MOV	AH, DH			; seconds
 	AND	AH, MASK SEC10 OR MASK SEC01
 	CALL	RP_WRITE_BCD
-	POPF					; restore IF
+	CLC					; always NC (just in case)
+	;POPF					; restore IF (necessary?)
 	RET
 RP_INT_1A_3 ENDP
 
@@ -287,7 +327,6 @@ RP_INT_1A_4 ENDP
 ;	nothing
 ;----------------------------------------------------------------------------;
 RP_INT_1A_5 PROC
-	PUSHF					; save IF
 	CALL	RP_RESET			; prepare for write operation, IF=0
 			IF SET_DOW EQ 1
 			EXTRN	DOW:NEAR
@@ -301,7 +340,7 @@ RP_INT_1A_5 PROC
 			IF Y2K_OFFSET EQ 1
 	XCHG	AX, CX
 	ADD	AL, 20H			; store year + 20
-	DAA	
+	DAA
 	XCHG	AX, CX
 			ENDIF
 	MOV	AL, R0_1YEAR		; year
@@ -316,6 +355,8 @@ RP_INT_1A_5 PROC
 	AND	AH, MASK DT10 OR MASK DT01
 	CALL	RP_WRITE_BCD
 
+			IF USE_LEAP EQ 1
+			EXTRN	IS_LEAP:NEAR
 ;----------------------------------------------------------------------------;
 ; Set leap year counter
 ;
@@ -326,7 +367,9 @@ RP_INT_1A_5 PROC
 	MOV	AL, R1_LEAP			; leap counter register
 	MOV	BL, 1				; use bank 1
 	CALL	RP_WRITE_BANK		; write leap counter
-	POPF					; restore IF
+			ENDIF
+
+	CLC
 	RET
 RP_INT_1A_5 ENDP
 
@@ -399,6 +442,7 @@ RP_INT_1A_5 ENDP
 ;----------------------------------------------------------------------------;
 RP_DETECT PROC
 
+			IF RTC_RP_TYPE EQ RTC_RP_AST	; AST/latched mode
 ;----------------------------------------------------------------------------;
 ; Port 2C0H is used with multiple RTCs:
 ;
@@ -412,6 +456,7 @@ RP_DETECT PROC
 	AND	AL, 0FH			; isolate only low nibble
 	XOR	AL, 0FH			; ZF = maybe Ricoh (read 0FFH)
 	JNZ	RP_DETECT_RET		; if NZ, not detected, exit
+			ENDIF
 
 ;----------------------------------------------------------------------------;
 ; Write 1 to register D1. Read back and if D1 is 0 Ricoh is present.
@@ -420,17 +465,19 @@ RP_DETECT PROC
 						; AH = Timer EN + D1, AL = 0DH (MODE register)
 	CALL	RP_WRITE			; write AH to register AL
 	CALL	RP_READ			; read register AL into AL
-	AND	AL, MASK MOZ		; test for bit 1, ZF = detected Ricoh
+;	AND	AL, MASK MOZ		; test for bit 1, ZF = detected Ricoh
+	AND	AL, MASK TEN OR MASK MOZ	; isolate bit 1 and Timer EN
+	CMP	AL, MASK TEN		; ZF if D1 = 0
 	JNZ	RP_DETECT_RET		; if NZ, not detected, exit
 	MOV	DX, ADDR_PORT		; DX = register control port
-	MOV	DI, OFFSET INT_1A_RP	; set DI only if detected (what?)
+	MOV	DI, OFFSET INT_1A_RP	; set DI only if detected
 	MOV	AL, RTC_RP
-RP_DETECT_RET:	
+RP_DETECT_RET:
 	RET
 RP_DETECT ENDP
 
 ;----------------------------------------------------------------------------;
-; Reset and prepare for write
+; Reset sub-second counters to prepare for operation
 ;----------------------------------------------------------------------------;
 ; Output: IF = 0 (Interrupts Off)
 ; Clobbers: BX
@@ -438,11 +485,11 @@ RP_DETECT ENDP
 RP_RESET PROC
 	CLI						; disable interrupts
 	PUSH	AX
-	MOV	AX, DBW < 0000B, R0_TEST >	; Reset the Test Register
+	MOV	AX, DBW < RP_TST<>, R0_TEST >	; Reset the Test Register
 	CALL	RP_WRITE
-	MOV	AX, DBW < MASK TRS, R0_RESET >; Reset the Timer
+	MOV	AX, DBW < RP_RST<>, R0_RESET >; Reset the Timer
 	CALL	RP_WRITE
-	MOV	AX, DBW < 0001B, R1_12_24H >	; set to 24-hour time
+	MOV	AX, DBW < RP_24<>, R1_12_24H >; set to 24-hour time
 	MOV	BL, 1					; bank 1
 	CALL	RP_WRITE_BANK			; set to 24 hour time
 	POP	AX
@@ -484,10 +531,14 @@ RP_READ_BYTE ENDP
 RP_READ PROC
 	AND	AL, 0FH			; only low nibble
 	MOV	DX, ADDR_PORT		; DX = register control port
+			IF ADDR_MODE_DIR EQ 1	; direct mode
+	ADD	DL, AL			; register index
+			ELSE
 	OUT	DX, AL			; select register
 	IO_DELAY_SHORT
 	INC	DX				; DX = data port
 	ISA_CLEAR
+			ENDIF
 	IN	AL, DX			; read register
 	AND	AL, 0FH			; only low nibble
 	CMP	AL, 10			; is valid (< 10)?
@@ -524,13 +575,17 @@ RP_WRITE_BCD PROC
 RP_WRITE PROC
 	PUSH	DX
 	PUSH	AX
-	;AND	AL, 0FH			; only low nibble
 	MOV	DX, ADDR_PORT		; DX = register control port
+			IF ADDR_MODE_DIR EQ 1	; direct mode
+	ADD	DL, AL			; select register
+			ELSE
+	;AND	AL, 0FH			; only low nibble
 	;OUT	DX, AX			; hacky way!
 	OUT	DX, AL			; select register
 	INC	DX				; DX = data port
-	XCHG	AL, AH			; AL = new register value
 	IO_DELAY_SHORT
+			ENDIF
+	XCHG	AL, AH			; AL = new register value
 	OUT	DX, AL			; write register
 RP_WRITE_EXIT:
 	POP	AX
