@@ -18,6 +18,7 @@ INCLUDE	RTC.INC
 ;
 RTC_NS_STD		EQU	1			; standard
 RTC_NS_TEC		EQU	2			; Tecmar Captain (data reg is +2)
+RTC_NS_PTS		EQU	3			; Persyst Time Spectrum (350h/250h)
 
 ;----------------------------------------------------------------------------;
 ; Software compatibility
@@ -50,10 +51,10 @@ NS_RAM8		EQU	NS_RAM + NS_MONTH	; 0FH - RAM8 not used
 NS_TIME_RST		EQU	12H			; counter reset
 NS_RAM_RST		EQU	13H			; RAM reset
 NS_STATUS		EQU	14H			; rollover status bit
-
 NS_RST		EQU	0FFH			; send all -1 to reset TIME and RAM
 NS_STATE_OK		EQU	222			; Clock valid flag for NS_RAM4 (0BH)
 NS_TEST		EQU	0AAH			; test value used for detection
+NS_ADDR_MAP		=	0			; address bits re-mapping (16 mode only)
 
 ;----------------------------------------------------------------------------;
 ; Standard RAM register addresses
@@ -72,12 +73,14 @@ RST_STATE		=	1		; reset clock if no valid state flag
 Y2K_OFFSET		=	1		; store as year-80 (00=1980, 20=2000, etc)
 YEAR_BCD		=	0		; 1=store year as BCD, 0=byte
 YEAR_INCR		=	1		; increment year (normal)
+CHECK_ROLLOVER	=	1		; check for rollover during operations
 
 ;----------------------------------------------------------------------------;
 ; Hardware type: Uncomment to select
 ;
 RTC_NS_TYPE		=	RTC_NS_STD		; set for standard
 ;RTC_NS_TYPE	=	RTC_NS_TEC		; set for Tecmar
+;RTC_NS_TYPE	=	RTC_NS_PTS		; set for Persyst Time Spectrum
 
 ;----------------------------------------------------------------------------;
 ; Driver Software compatibility: Uncomment to select
@@ -85,8 +88,23 @@ RTC_NS_TYPE		=	RTC_NS_STD		; set for standard
 RTC_DRV_TYPE	=	RTC_DRV_STD		; set for standard (year as byte)
 ;RTC_DRV_TYPE	=	RTC_DRV_OLD		; set for <= 0.8.3 behavior
 ;RTC_DRV_TYPE	=	RTC_DRV_86B		; set for 86Box (Generic 58167, AST
-;							;  5PAK or EV-170)
+;							;  or EV-170)
 ;RTC_DRV_TYPE	=	RTC_DRV_86B2	; set for 86Box (PII-147)
+
+;----------------------------------------------------------------------------;
+; NS I/O ports definition
+;----------------------------------------------------------------------------;
+		IF RTC_NS_TYPE EQ RTC_NS_TEC
+NS_IO_PORTS		EQU	< 2C0H, 37DH, 27DH >	; Tecmar Captain
+		ELSE
+			IF RTC_NS_TYPE EQ RTC_NS_PTS
+NS_IO_PORTS	EQU	< 350H, 250H >			; Persyst Time Spectrum
+			ELSE
+NS_IO_PORTS		EQU	< 2C0H, 240H, 340H >	; common ports
+;NS_IO_PORTS	EQU	< 2C0H, 250H, 300H >	; less common ports
+;NS_IO_PORTS	EQU	< 2C0H, 350H, 377H >	; less common ports
+			ENDIF
+		ENDIF
 
 ;----------------------------------------------------------------------------;
 ; Reconfigure for specific hardware/software
@@ -121,6 +139,15 @@ YEAR_BCD		=	1			; store year as BCD
 YEAR_INCR		=	0			; year increment is handled by 86Box
 		ENDIF
 
+;----------------------------------------------------------------------------;
+; Persyst Time Spectrum
+;
+		IF RTC_NS_TYPE EQ RTC_NS_PTS
+NS_ADDR_MAP		= 010000110000b		; 58167 bit A5 wired to ISA bit A10
+							; - 350h -> 750h
+							; -  1xh -> 0xh
+		ENDIF
+
 INCLUDE	GLALIB.INC
 INCLUDE	MACROS.INC
 INCLUDE	SEGS.INC
@@ -144,15 +171,8 @@ STR_NS	DB	'58167 ', 0			; NS = MM58167AN
 ;----------------------------------------------------------------------------;
 ; Supported I/O ports
 ;----------------------------------------------------------------------------;
-NS_PORTS	DW	2C0H			; common ports
-			IF	RTC_NS_TYPE	EQ RTC_NS_TEC
-		DW	37DH, 27DH		; Tecmar Captain
-			ELSE
-		DW	240H, 340H
-;		DW	250H, 300H
-;		DW	350H, 377H
-			ENDIF
-NS_PORTS_CT	EQU	($-NS_PORTS)/2	; number of supported ports
+NS_PORTS	DW	NS_IO_PORTS			; supported I/O ports
+NS_PORTS_CT	EQU	($-NS_PORTS)/2		; number of supported ports
 
 ;----------------------------------------------------------------------------;
 ; INT 1A IVT for NS MM58167AN
@@ -412,12 +432,19 @@ NS_INT_1A_4 ENDP
 ; Clobbers: AX
 ;----------------------------------------------------------------------------;
 NS_CHECK_ROLLOVER PROC
+			IF CHECK_ROLLOVER EQ 1
 	PUSH	DX				; save DX
 	MOV	AL, NS_STATUS		; status bit index
 	CALL	NS_GET_PORT			; DX = data port
+			IF NS_ADDR_MAP NE 0
+	XOR	DX, NS_ADDR_MAP		; transform address bits
+			ENDIF
 	IN	AL, DX
 	TEST	AL, AL			; rollover bit set?
 	POP	DX				; restore DX
+			ELSE
+	CMP	SP, SP			; ZF = 1 (always ok)
+			ENDIF
 	RET
 NS_CHECK_ROLLOVER ENDP
 
@@ -547,10 +574,17 @@ NS_CHECK_STATE ENDP
 ;----------------------------------------------------------------------------;
 NS_RESET PROC
 			IF RST_STATE EQ 1
+			IF NS_ADDR_MAP NE 0
+	PUSH	DI					; save DI
+	XOR	DI, NS_ADDR_MAP			; transform address bits
+			ENDIF
 	MOV	AX, DBW <NS_RST, NS_TIME_RST>	; counter reset register
 	CALL	NS_WRITE				; write all 1's to reset
 	MOV	AL, NS_RAM_RST			; RAM reset register
 	CALL	NS_WRITE
+			IF NS_ADDR_MAP NE 0
+	POP	DI					; restore DI
+			ENDIF
 			ENDIF
 	MOV	AX, DBW <NS_STATE_OK, NS_STATE>	; set state register to OK
 							; fall through to write
@@ -678,10 +712,10 @@ NS_DETECT_PORT PROC
 	CALL	NS_READ			; read original value
 	XCHG	AX, DX			; save to DL
 	MOV	AX, DBW < NS_TEST, NS_RAM6 > ; AH = test value, AL = register 0DH
-	CALL	NS_WRITE			; write test value 
+	CALL	NS_WRITE			; write test value
 	MOV	AL, NS_RAM6			; register 0DH
 	CALL	NS_READ			; AL = re-read value
-	XCHG	AX, DX			; AL = original value, DL = test read	
+	XCHG	AX, DX			; AL = original value, DL = test read
 
 ;----------------------------------------------------------------------------;
 ; Restore previous value
