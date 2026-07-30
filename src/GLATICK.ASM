@@ -6,7 +6,7 @@
 ;
 ; A Real Time Clock Companion ROM.
 ;
-; Copyright (c) 2022-2025, 640KB and contributors
+; Copyright (c) 2022-2026, 640KB and contributors
 ;
 ;----------------------------------------------------------------------------;
 ;
@@ -42,9 +42,9 @@
 ;
 ;----------------------------------------------------------------------------;
 VER_NAME		EQU	'GLaTICK'
-VER_NUM		EQU	'0.8.8'		; (max 6 chars)
-VER_DATE		EQU	'07/07/25' 		; must be MM/DD/YY format
-COPY_YEAR		EQU	'2023-25'
+VER_NUM		EQU	'0.8.9'		; (max 6 chars)
+VER_DATE		EQU	'07/30/26' 		; must be MM/DD/YY format
+COPY_YEAR		EQU	'2023-26'
 
 ;----------------------------------------------------------------------------;
 ; Config
@@ -65,6 +65,7 @@ DATE_FMT		=	3			; 0 = MM/DD/YY (Ye Olde BIOS style)
 							; 2 = YY-MM-DD (ISO short)
 							; 3 = YYYY-MM-DD (ISO)
 TIME_SEC		=	0			; 1 = HH:MM:SS, 0 = HH:MM only
+TIME_MN_12		=	1			; midnight 12hr time 1=12:00, 0=00:00
 
 ;----------------------------------------------------------------------------;
 ; Date/time display formatting based on display config
@@ -482,6 +483,12 @@ RTC_PRINT_DATE:
 ;----------------------------------------------------------------------------;
 	MOV	AL, CH				; AL = BCD hours
 		IF TIME_FMT EQ 1			; 12 hour time
+			IF TIME_MN_12 EQ 1
+	TEST	AL, AL				; is midnight (00:00)?
+	JNZ	TIME_12_HOUR			; jump if not
+	MOV	AL, 12H				; set hour to 12 (ok to fall thru)
+TIME_12_HOUR:
+			ENDIF
 	CMP	AL, 12H				; is noon or before?
 	JLE	TIME_12_DONE			; jump if so
 	SUB	AL, 12H				; otherwise subtract 12
